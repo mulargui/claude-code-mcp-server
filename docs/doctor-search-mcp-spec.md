@@ -50,7 +50,7 @@ Each doctor record contains:
 | `address`    | string | Street address                       |
 | `city`       | string | City                                 |
 | `zipcode`    | string | Zip code                             |
-| `phone`      | string | Phone number                         |
+| `phone`      | string | 10-digit US phone number (e.g. `"3105551234"`) |
 
 #### Error Cases
 

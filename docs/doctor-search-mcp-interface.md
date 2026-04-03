@@ -93,7 +93,7 @@ Each doctor record:
 | `address`   | string | Street address |
 | `city`      | string | City |
 | `zipcode`   | string | 5-digit zip code |
-| `phone`     | string | Phone number |
+| `phone`     | string | 10-digit US phone number (e.g. `"3105551234"`) |
 
 ### Errors
 
@@ -107,6 +107,8 @@ Validation errors are returned with `isError: true` and a text content block con
 | Invalid `specialty` | `"Invalid specialty: must be at least 3 characters, alphabetic, spaces, and hyphens only."` |
 | Invalid `gender` | `"Invalid gender: must be one of 'male', 'female', 'M', 'F'."` |
 | Invalid `zipcode` | `"Invalid zipcode: must be exactly 5 digits."` |
+
+Internal errors (e.g., database unavailable or query failure) are returned with `isError: true` and the message `"Internal error: please try again later."`.
 
 ## MCP Protocol Details
 

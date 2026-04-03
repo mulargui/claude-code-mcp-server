@@ -29,7 +29,7 @@ CREATE TABLE doctors (
   address        TEXT,
   city           TEXT,
   zipcode        TEXT,          -- 5-digit
-  phone          TEXT
+  phone          TEXT           -- 10-digit US phone, no formatting
 );
 
 CREATE INDEX idx_last_name      ON doctors(last_name);
