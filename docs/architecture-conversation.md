@@ -14,6 +14,7 @@ Design the architecture for the Doctor Search MCP server, building on the functi
 6. **Project structure**: All files at the repo root (no wrapper folder). Source code in `src/`, data in `data/`, docs in `docs/`.
 7. **Tables imported**: `npidata2` (as `doctors`) and `taxonomy` only. The `speciality` table is redundant (classification/specialization already inline in `npidata2`). The `transactions` table is ignored.
 8. **Specialty mapping**: The `speciality` input filter matches against both `Classification` and `Specialization` columns in the data.
+9. **Container**: Docker container using a multi-stage build on `node:20-slim`. Data import runs at build time so the SQLite DB is baked into the image. MCP clients launch the server via `docker run -i --rm` for stdio transport.
 
 ## Output
 

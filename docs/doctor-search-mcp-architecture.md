@@ -74,6 +74,8 @@ CREATE TABLE specializations (
 
 ```
 /
+├── Dockerfile
+├── .dockerignore
 ├── package.json
 ├── tsconfig.json
 ├── data/
@@ -157,10 +159,33 @@ Tool call → server.ts
 
 ## Verification
 
-1. **Import**: Run `npx tsx data/import-data.ts` — verify `data/doctors.db` is created and queryable
-2. **Manual test**: Run the server with `npx tsx src/index.ts` and send MCP tool calls via stdin (or connect from Claude Code)
+1. **Build**: Run `docker build -t doctor-search-mcp .` — verify the image builds successfully (this compiles TypeScript, imports the data, and generates `data/doctors.db`)
+2. **Manual test**: Run `docker run -i --rm doctor-search-mcp` and send MCP tool calls via stdin (or connect from Claude Code using the MCP client configuration above)
 3. **Smoke queries**:
    - `{"speciality": "Internal Medicine"}` → returns doctors
    - `{"lastname": "Smith"}` → returns doctors
    - `{"gender": "female"}` → rejected (missing lastname/speciality)
    - `{"speciality": "cardiology", "zipcode": "abc"}` → rejected (invalid zip)
+
+## Container
+
+The server runs inside a Docker container with all dependencies and data baked in.
+
+- **Multi-stage Dockerfile** based on `node:20-slim` — build stage compiles TypeScript and runs the data import; runtime stage copies only the compiled JS, `node_modules`, and `data/doctors.db`
+- Data import happens at **build time**, so the SQLite DB is baked into the image
+- No `EXPOSE` needed — the server uses stdio transport
+- Build: `docker build -t doctor-search-mcp .`
+- Run: `docker run -i --rm doctor-search-mcp` (`-i` keeps stdin open for stdio)
+
+### MCP Client Configuration
+
+```json
+{
+  "mcpServers": {
+    "doctor-search": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "doctor-search-mcp"]
+    }
+  }
+}
+```
