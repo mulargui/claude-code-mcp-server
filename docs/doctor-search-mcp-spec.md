@@ -20,25 +20,32 @@ All parameters are optional strings, but the following constraints apply:
 
 | Parameter    | Type   | Description                          | Validation                                       |
 |--------------|--------|--------------------------------------|--------------------------------------------------|
-| `lastname`   | string | Filter by doctor's last name         | Non-empty, alphabetic characters only             |
-| `specialty` | string | Filter by medical specialty          | Non-empty, must be a recognized specialty          |
+| `lastname`   | string | Filter by doctor's last name (prefix match) | Non-empty, alphabetic characters only             |
+| `specialty` | string | Filter by medical specialty (prefix match) | Non-empty, minimum 3 characters                   |
 | `gender`     | string | Filter by gender                     | Non-empty, valid values: `male`, `female`, `M`, `F` |
 | `zipcode`    | string | Filter by zip code                   | Non-empty, valid US zip code format                |
 
-When multiple filters are provided, they are combined with AND logic — only doctors matching **all** specified filters are returned.
+The `lastname` filter uses **prefix matching** — searching for `"Smi"` will match `"Smith"`, `"Smithson"`, etc. The `specialty` filter also uses **prefix matching** and searches against both the doctor's classification and specialization — searching for `"Cardio"` will match doctors with classification `"Cardiology"` or specialization `"Cardiovascular Disease"`. All other filters use exact matching. When multiple filters are provided, they are combined with AND logic — only doctors matching **all** specified filters are returned.
 
 Results are capped at **50 records**. If more matches exist, only the first 50 are returned.
 
 #### Output
 
-A list of doctor records. Each record contains:
+The response contains:
+
+| Field          | Type   | Description                          |
+|----------------|--------|--------------------------------------|
+| `total_count`  | number | Total number of matching doctors (may exceed 50) |
+| `doctors`      | array  | List of doctor records (max 50)      |
+
+Each doctor record contains:
 
 | Field        | Type   | Description                          |
 |--------------|--------|--------------------------------------|
 | `npi`        | string | National Provider Identifier (unique key) |
 | `lastname`   | string | Doctor's last name                   |
 | `firstname`  | string | Doctor's first name                  |
-| `specialty` | string | Medical specialty                    |
+| `specialty` | string | Medical specialty (the longer of classification/specialization when both match the query) |
 | `gender`     | string | Gender                               |
 | `address`    | string | Street address                       |
 | `city`       | string | City                                 |
@@ -51,7 +58,7 @@ A list of doctor records. Each record contains:
 |----------------------------------------------------------|----------------------------------------------------------------------|
 | No filters provided                                      | "At least one filter is required."                                   |
 | Filters provided but missing `lastname` and `specialty` | "At least `lastname` or `specialty` must be included as a filter."  |
-| A field fails validation                                 | Descriptive error identifying the invalid field and reason            |
+| A field fails validation (e.g. fewer than 3 characters for lastname/specialty) | Descriptive error identifying the invalid field and reason            |
 
 #### Examples
 

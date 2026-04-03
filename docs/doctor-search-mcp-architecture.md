@@ -39,21 +39,7 @@ CREATE INDEX idx_gender         ON doctors(gender);
 CREATE INDEX idx_zipcode        ON doctors(zipcode);
 ```
 
-**`taxonomy` table** (for validating specialty input):
-
-```sql
-CREATE TABLE taxonomy (
-  classification TEXT PRIMARY KEY
-);
-```
-
-We also extract distinct non-empty `Specialization` values from `npidata2` into a `specializations` table for validation:
-
-```sql
-CREATE TABLE specializations (
-  specialization TEXT PRIMARY KEY
-);
-```
+The `taxonomy` and `specializations` tables are **not needed** — specialty validation no longer checks against known values (prefix matching with zero results is the feedback mechanism).
 
 ### Column Mapping (MySQL → SQLite)
 
@@ -116,16 +102,19 @@ CREATE TABLE specializations (
 
 ### `src/search.ts` — Query Builder
 - Builds parameterized SQL queries based on validated filters
-- The `specialty` filter queries with: `(classification = ? OR specialization = ?)`
+- The `lastname` filter uses prefix matching: `lastname LIKE ? || '%' COLLATE NOCASE`
+- The `specialty` filter uses prefix matching against both columns: `(classification LIKE ? || '%' COLLATE NOCASE OR specialization LIKE ? || '%' COLLATE NOCASE)`
 - All other filters are direct equality checks (case-insensitive via `COLLATE NOCASE`)
-- Appends `LIMIT 50` to all queries
-- Returns typed doctor records
+- Runs a `SELECT COUNT(*)` query (same filters, no LIMIT) to get the exact total match count
+- Appends `LIMIT 50` to the results query
+- Maps the output `specialty` field: when both `classification` and `specialization` match the query prefix, returns the longer string; when only one matches, returns that one
+- Returns `{ total_count, doctors }` — total count plus the capped result list
 
 ### `src/validate.ts` — Input Validation
 - Validates the filter combination rules (at least one filter; must include `lastname` or `specialty`)
 - Validates individual fields:
-  - `lastname`: alphabetic + hyphens only (data has hyphenated names like "JOHNSON-FENTER")
-  - `specialty`: must exist in `taxonomy.classification` or `specializations.specialization`
+  - `lastname`: alphabetic + hyphens only, minimum 3 characters (prefix match, so single-char queries are too broad)
+  - `specialty`: minimum 3 characters, alphabetic + spaces + hyphens only (no DB validation — unmatched prefixes simply return zero results)
   - `gender`: must be one of `male`, `female`, `M`, `F` (normalized to `M`/`F` for querying)
   - `zipcode`: must be 5 digits
 
@@ -136,11 +125,15 @@ CREATE TABLE specializations (
 
 ### `data/import-data.ts` — Data Import
 - Reads the MySQL dump file
-- Parses `INSERT INTO` statements for `npidata2` and `taxonomy` tables using regex
+- Parses `INSERT INTO` statements for `npidata2` table using regex
 - Strips `\r` from values (present in the dump's Specialization column)
 - Creates the SQLite DB with the schema above
 - Inserts records in batches within a transaction
-- Extracts distinct specializations from npidata2 into the `specializations` table
+- Runs a **post-import sanity check** before finishing:
+  - Verifies total row count is within an expected range (fails if zero or suspiciously low)
+  - Spot-checks a few known NPI records exist and have non-empty `last_name`, `classification`
+  - Logs the final row count for visibility
+  - Exits with a non-zero code if any check fails, so the Docker build breaks loudly rather than shipping an empty or corrupt DB
 
 ## Dependencies
 
