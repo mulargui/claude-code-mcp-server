@@ -116,21 +116,22 @@ CREATE TABLE specializations (
 
 ### `src/search.ts` — Query Builder
 - Builds parameterized SQL queries based on validated filters
-- The `speciality` filter queries with: `(classification = ? OR specialization = ?)`
+- The `specialty` filter queries with: `(classification = ? OR specialization = ?)`
 - All other filters are direct equality checks (case-insensitive via `COLLATE NOCASE`)
+- Appends `LIMIT 50` to all queries
 - Returns typed doctor records
 
 ### `src/validate.ts` — Input Validation
-- Validates the filter combination rules (at least one filter; must include `lastname` or `speciality`)
+- Validates the filter combination rules (at least one filter; must include `lastname` or `specialty`)
 - Validates individual fields:
   - `lastname`: alphabetic + hyphens only (data has hyphenated names like "JOHNSON-FENTER")
-  - `speciality`: must exist in `taxonomy.classification` or `specializations.specialization`
+  - `specialty`: must exist in `taxonomy.classification` or `specializations.specialization`
   - `gender`: must be one of `male`, `female`, `M`, `F` (normalized to `M`/`F` for querying)
   - `zipcode`: must be 5 digits
 
 ### `src/types.ts` — Types
 - `DoctorSearchInput`: the tool input shape
-- `DoctorRecord`: the output record shape
+- `DoctorRecord`: the output record shape (includes `npi` as a unique identifier)
 - `ValidationError`: error type
 
 ### `data/import-data.ts` — Data Import
@@ -162,10 +163,10 @@ Tool call → server.ts
 1. **Build**: Run `docker build -t doctor-search-mcp .` — verify the image builds successfully (this compiles TypeScript, imports the data, and generates `data/doctors.db`)
 2. **Manual test**: Run `docker run -i --rm doctor-search-mcp` and send MCP tool calls via stdin (or connect from Claude Code using the MCP client configuration above)
 3. **Smoke queries**:
-   - `{"speciality": "Internal Medicine"}` → returns doctors
+   - `{"specialty": "Internal Medicine"}` → returns doctors (capped at 50)
    - `{"lastname": "Smith"}` → returns doctors
-   - `{"gender": "female"}` → rejected (missing lastname/speciality)
-   - `{"speciality": "cardiology", "zipcode": "abc"}` → rejected (invalid zip)
+   - `{"gender": "female"}` → rejected (missing lastname/specialty)
+   - `{"specialty": "cardiology", "zipcode": "abc"}` → rejected (invalid zip)
 
 ## Container
 
