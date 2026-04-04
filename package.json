@@ -5,6 +5,7 @@
   "scripts": {
     "build": "tsc",
     "import-data": "tsx data/import-data.ts",
+    "verify-data": "tsx data/verify-data.ts",
     "start": "node dist/index.js"
   },
   "dependencies": {

@@ -12,6 +12,7 @@ RUN npm run build
 
 COPY data/ data/
 RUN npm run import-data
+RUN npm run verify-data
 
 # Stage 2: Runtime
 FROM node:22-slim
