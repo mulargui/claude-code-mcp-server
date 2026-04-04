@@ -4,6 +4,14 @@
 
 An MCP server that exposes a single tool, `doctor-search`, allowing clients to search for doctors by last name, specialty, gender, and/or zip code.
 
+### Why?
+
+Doctor-search has been a component available to multiple apps in the past using an API. With the advent of LLMs and its use in chat applications, chat bots and agents, there are better ways to integrate this component. 
+
+At this time the MCP protocol (https://modelcontextprotocol.io/) is the gold standard to integrate third party tools into an LLM. The LLM will understand the services provided by the component, how to invoke them and interpret results.
+
+There is a growing interest in the A2A protocol (https://a2a-protocol.org/), but the decision has been to start with the MCP protocol, which is well-known and broadly adopted, and postpone to implement the A2A protocol to the future.
+
 ## Tool
 
 ### `doctor-search`
