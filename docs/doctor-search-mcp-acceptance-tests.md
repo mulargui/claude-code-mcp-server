@@ -367,14 +367,14 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 **Given** the server is initialized
 **When** the client calls `doctor-search` with `arguments: { "lastname": "S", "zipcode": "abc" }`
 **Then** the response has `isError: true`
-**And** the message identifies at least the first invalid field
+**And** the message is `"Invalid lastname: must be at least 3 characters, alphabetic and hyphens only."`
 
 ### 4.2 Combination rule violated AND field invalid
 
 **Given** the server is initialized
 **When** the client calls `doctor-search` with `arguments: { "gender": "xyz" }`
 **Then** the response has `isError: true`
-**And** the message addresses the combination rule OR the invalid gender (validation rejects before search)
+**And** the message is `"At least 'lastname' or 'specialty' must be included as a filter."` (combination rule checked before individual field validation)
 
 ### 4.3 Valid combination with one invalid field
 
@@ -647,11 +647,11 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 **When** the client calls `doctor-search` with `arguments: { "specialty": "Cardio" }`
 **Then** NPI 1000000004's `specialty` field is `"Interventional Cardiology"` (the longer of the two matching strings)
 
-### 11.4 Specialty field when no specialty filter used
+### 11.4 Specialty field when no specialty filter used — longer of the two
 
 **Given** NPI 1000000001 has `classification = "Internal Medicine"` and `specialization = "Cardiovascular Disease"`
 **When** the client calls `doctor-search` with `arguments: { "lastname": "Smith" }`
-**Then** NPI 1000000001's `specialty` field contains a value (the spec should define a default — likely the longer of the two, or classification as the default)
+**Then** NPI 1000000001's `specialty` field is `"Cardiovascular Disease"` (the longer of classification and specialization)
 
 ---
 
@@ -731,14 +731,18 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 **Then** the response has `isError: true` (validation rejects special characters)
 **And** the database is not affected
 
-### 13.8 Lastname — unicode characters
+### 13.8 Lastname — ASCII alphabetic accepted
 
 **Given** the validation only accepts alphabetic characters and hyphens
 **When** the client calls `doctor-search` with `arguments: { "lastname": "Muller" }`
 **Then** the response is successful (ASCII alphabetic)
 
-**When** the client calls `doctor-search` with `arguments: { "lastname": "Muller" }`
-**Then** if the validation considers only ASCII alphabetic, accented characters are rejected
+### 13.8b Lastname — unicode accented characters rejected
+
+**Given** the validation only accepts ASCII alphabetic characters and hyphens
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Müller" }`
+**Then** the response has `isError: true`
+**And** the message is `"Invalid lastname: must be at least 3 characters, alphabetic and hyphens only."`
 
 ### 13.9 Whitespace-only lastname
 
@@ -862,6 +866,134 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 
 ---
 
+## 18. Validation Ordering
+
+### 18.1 Field validation order is deterministic
+
+**Given** the server is initialized
+**When** the client calls `doctor-search` with `arguments: { "lastname": "S", "specialty": "X", "gender": "xyz", "zipcode": "abc" }`
+**Then** the response has `isError: true`
+**And** the message is `"Invalid lastname: must be at least 3 characters, alphabetic and hyphens only."` (lastname validated first)
+
+---
+
+## 19. Result Ordering
+
+### 19.1 Results are returned in a deterministic order
+
+**Given** test data contains 55 doctors with `last_name = "Test"`
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Test" }` twice
+**Then** both responses return the same 50 doctors in the same order
+
+### 19.2 Results are sorted by NPI ascending
+
+**Given** test data contains multiple matching doctors
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Smith" }`
+**Then** the `doctors` array is sorted by `npi` in ascending order
+
+---
+
+## 20. Specialty Field Default (No Specialty Filter)
+
+### 20.1 No specialty filter, both fields populated — longer returned
+
+**Given** NPI 1000000001 has `classification = "Internal Medicine"` and `specialization = "Cardiovascular Disease"`
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Smith" }`
+**Then** NPI 1000000001's `specialty` field is `"Cardiovascular Disease"` (the longer of classification and specialization)
+
+### 20.2 No specialty filter, only specialization populated
+
+**Given** a doctor has empty `classification` and `specialization = "Cardiovascular Disease"`
+**When** found via lastname search
+**Then** the doctor's `specialty` field is `"Cardiovascular Disease"`
+
+### 20.3 No specialty filter, only classification populated
+
+**Given** NPI 1000000002 has `classification = "Internal Medicine"` and empty `specialization`
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Smith" }`
+**Then** NPI 1000000002's `specialty` field is `"Internal Medicine"`
+
+---
+
+## 21. Gender Case Sensitivity
+
+### 21.1 Gender "MALE" (uppercase) rejected
+
+**Given** the server is initialized
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Smith", "gender": "MALE" }`
+**Then** the response has `isError: true`
+**And** the message is `"Invalid gender: must be one of 'male', 'female', 'M', 'F'."`
+
+### 21.2 Gender "Male" (title case) rejected
+
+**Given** the server is initialized
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Smith", "gender": "Male" }`
+**Then** the response has `isError: true`
+**And** the message is `"Invalid gender: must be one of 'male', 'female', 'M', 'F'."`
+
+### 21.3 Gender "FEMALE" (uppercase) rejected
+
+**Given** the server is initialized
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Smith", "gender": "FEMALE" }`
+**Then** the response has `isError: true`
+**And** the message is `"Invalid gender: must be one of 'male', 'female', 'M', 'F'."`
+
+---
+
+## 22. Prefix Matching Boundaries
+
+### 22.1 Specialty prefix matches classification and specialization across different doctors
+
+**Given** NPI 1000000007 has `classification = "Psychiatry"` and NPI 1000000004 has `specialization = "Interventional Cardiology"`
+**When** the client calls `doctor-search` with `arguments: { "specialty": "Psych" }`
+**Then** the result contains NPI 1000000007
+**And** the OR logic matches against classification and specialization independently per doctor
+
+### 22.2 Lastname prefix — hyphen in the middle of prefix
+
+**Given** NPI 1000000006 has `last_name = "O-Brien"`
+**When** the client calls `doctor-search` with `arguments: { "lastname": "O-Bri" }`
+**Then** the result contains NPI 1000000006
+
+---
+
+## 23. Repeated Calls — Consistency
+
+### 23.1 Multiple sequential calls return consistent results
+
+**Given** the server has been initialized
+**When** the client makes 3 identical calls with `arguments: { "lastname": "Smith" }`
+**Then** all 3 responses have identical `total_count` and `doctors` arrays (no state mutation between calls)
+
+---
+
+## 24. Empty Database
+
+### 24.1 Valid query against empty database
+
+**Given** the SQLite database has the `doctors` table but zero rows
+**When** the client calls `doctor-search` with `arguments: { "lastname": "Smith" }`
+**Then** `total_count` is 0 and `doctors` is `[]`
+**And** `isError` is absent or `false` (empty database is not an error)
+
+---
+
+## 25. Specialty Tiebreaker — Equal Length
+
+### 25.1 Both classification and specialization match with different lengths — longer wins
+
+**Given** a doctor has `classification = "Sports Medicine"` (15 chars) and `specialization = "Sports Orthopedics"` (18 chars)
+**When** the client calls `doctor-search` with `arguments: { "specialty": "Sports" }`
+**Then** the doctor's `specialty` field is `"Sports Orthopedics"` (the longer string)
+
+### 25.2 Both classification and specialization match with equal length — classification wins
+
+**Given** a doctor has `classification = "Sleep Medicine"` (14 chars) and `specialization = "Sleep Disorder"` (14 chars)
+**When** the client calls `doctor-search` with `arguments: { "specialty": "Sleep" }`
+**Then** the doctor's `specialty` field is `"Sleep Medicine"` (classification used as tiebreaker)
+
+---
+
 ## Test Summary
 
 | Category | Test Count | Coverage |
@@ -878,9 +1010,17 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 | Output Format | 6 | Field presence, types, normalization |
 | Specialty Field Mapping | 4 | Classification/specialization selection logic |
 | No Results | 4 | Valid queries returning zero matches |
-| Edge Cases — Input | 10 | SQL injection, unicode, whitespace, long strings, type mismatches |
+| Edge Cases — Input | 11 | SQL injection, unicode, whitespace, long strings, type mismatches |
 | Edge Cases — Data | 5 | Empty fields, hyphens in data |
 | Internal Errors | 2 | Database failure, error message consistency |
 | Response Structure | 4 | JSON validity, content block format |
 | Validation Priority | 2 | Validation-before-search guarantee |
-| **Total** | **116** | |
+| Validation Ordering | 1 | Deterministic field validation order |
+| Result Ordering | 2 | Deterministic sort order, NPI ascending |
+| Specialty Field Default | 3 | Default behavior when no specialty filter used |
+| Gender Case Sensitivity | 3 | Uppercase/title-case variants rejected |
+| Prefix Matching Boundaries | 2 | Cross-doctor OR logic, hyphen in prefix |
+| Repeated Calls | 1 | Consistency across sequential calls |
+| Empty Database | 1 | Valid query against zero rows |
+| Specialty Tiebreaker | 2 | Equal-length and different-length tiebreaker |
+| **Total** | **132** | |
