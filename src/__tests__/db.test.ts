@@ -1,3 +1,9 @@
+/**
+ * src/__tests__/db.test.ts — Database Module Unit Tests
+ *
+ * Verifies the db module's lifecycle guards (open/close/get) without
+ * requiring the actual doctors.db file on disk.
+ */
 import { describe, it, expect, afterEach } from "vitest";
 import { vi } from "vitest";
 

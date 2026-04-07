@@ -1,3 +1,9 @@
+/**
+ * src/types.ts — Shared Type Definitions
+ *
+ * Defines the core data shapes used across the MCP server:
+ * search input parameters, doctor records, and search results.
+ */
 export interface DoctorSearchInput {
   lastname?: string;
   specialty?: string;

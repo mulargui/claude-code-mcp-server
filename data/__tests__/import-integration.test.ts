@@ -1,3 +1,10 @@
+/**
+ * data/__tests__/import-integration.test.ts — Import Pipeline Integration Tests
+ *
+ * End-to-end tests for the MySQL dump → SQLite import pipeline.
+ * Creates temporary dump files, runs the importer, and verifies
+ * schema, data mapping, deduplication, and index creation.
+ */
 import { describe, it, expect, afterEach } from "vitest";
 import { writeFileSync, unlinkSync, existsSync } from "fs";
 import { tmpdir } from "os";

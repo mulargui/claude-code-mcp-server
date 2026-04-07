@@ -1,3 +1,9 @@
+# Dockerfile — Multi-Stage Docker Build
+#
+# Stage 1: Installs deps, compiles TypeScript, runs tests, and imports
+# the doctor data from the MySQL dump into SQLite.
+# Stage 2: Copies only production artifacts for a lean runtime image.
+
 # Stage 1: Build
 FROM node:22-slim AS builder
 

@@ -1,3 +1,9 @@
+/**
+ * data/__tests__/parse-values.test.ts — VALUES Parser Unit Tests
+ *
+ * Tests the MySQL VALUES clause parser against edge cases:
+ * escaped quotes, NULLs, embedded commas, and multi-tuple inputs.
+ */
 import { describe, it, expect } from "vitest";
 import { parseValues, MIN_FIELDS } from "../parse-values.js";
 
