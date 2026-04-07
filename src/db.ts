@@ -16,6 +16,9 @@ import { fileURLToPath } from "url";
 import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Path assumes this runs from dist/db.js (compiled). The ../data relative path
+// would be wrong if run directly via tsx from src/. Import and verify scripts
+// resolve their own paths independently.
 const dbPath = path.join(__dirname, "..", "data", "doctors.db");
 
 let db: DatabaseType | null = null;

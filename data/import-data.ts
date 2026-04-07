@@ -37,7 +37,8 @@ const COL = {
   SPECIALIZATION: 18,
 } as const;
 
-const TOTAL_COLUMNS = 19; // 0..18
+// Minimum number of fields expected per tuple (npidata2 has 19 columns: indices 0–18)
+const MIN_FIELDS = 19;
 
 /**
  * Parse a MySQL VALUES clause into an array of string arrays (tuples).
@@ -110,7 +111,7 @@ function parseValues(valuesStr: string): string[][] {
 
     if (i < len) i++; // skip ')'
 
-    if (fields.length >= TOTAL_COLUMNS) {
+    if (fields.length >= MIN_FIELDS) {
       tuples.push(fields);
     }
 
@@ -157,18 +158,14 @@ function main(): void {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  // Find all INSERT INTO npidata2 statements
-  const insertRegex =
-    /INSERT INTO `npidata2` VALUES\s*(.*?);$/gms;
-
-  let totalInserted = 0;
-  let match: RegExpExecArray | null;
+  let totalParsed = 0;
+  let totalSkipped = 0;
 
   console.log("Parsing and importing records...");
 
   const insertMany = db.transaction((tuples: string[][]) => {
     for (const fields of tuples) {
-      insert.run(
+      const result = insert.run(
         fields[COL.NPI],
         fields[COL.LAST_NAME],
         fields[COL.FIRST_NAME],
@@ -180,18 +177,28 @@ function main(): void {
         fields[COL.SHORT_POSTAL_CODE],
         fields[COL.PHONE]
       );
+      if (result.changes === 0) {
+        totalSkipped++;
+      }
     }
   });
 
-  while ((match = insertRegex.exec(dump)) !== null) {
-    const valuesStr = match[1];
+  // Process line-by-line to avoid fragile regex matching across statement boundaries
+  const INSERT_PREFIX = "INSERT INTO `npidata2` VALUES ";
+  for (const line of dump.split("\n")) {
+    if (!line.startsWith(INSERT_PREFIX)) continue;
+    // Extract the VALUES clause: everything after the prefix, minus the trailing semicolon
+    const valuesStr = line.slice(INSERT_PREFIX.length).replace(/;\s*$/, "");
     const tuples = parseValues(valuesStr);
     insertMany(tuples);
-    totalInserted += tuples.length;
-    process.stdout.write(`  ...${totalInserted} records\r`);
+    totalParsed += tuples.length;
+    process.stdout.write(`  ...${totalParsed} records\r`);
   }
 
-  console.log(`\nImported ${totalInserted} records.`);
+  console.log(`\nParsed ${totalParsed} records, inserted ${totalParsed - totalSkipped}.`);
+  if (totalSkipped > 0) {
+    console.warn(`Warning: ${totalSkipped} duplicate NPI(s) skipped.`);
+  }
 
   // Create indexes after bulk insert (faster than indexing during insert)
   console.log("Creating indexes...");
