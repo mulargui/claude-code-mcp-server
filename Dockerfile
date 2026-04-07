@@ -11,6 +11,7 @@ COPY src/ src/
 RUN npm run build
 
 COPY data/ data/
+RUN npm test
 RUN npm run import-data
 RUN npm run verify-data
 
