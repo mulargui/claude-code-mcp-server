@@ -1,5 +1,7 @@
 # Doctor Search MCP Server
 
+> **Status: Work in Progress** — The data import pipeline, database module, types, tests, and Docker infrastructure are complete. The core server modules (`index.ts`, `server.ts`, `search.ts`, `validate.ts`) are stubbed and not yet functional. The server cannot process MCP requests until these are implemented.
+
 An MCP server that lets LLMs search a directory of ~85,000 US doctors by last name, specialty, gender, and zip code.
 
 ## What is this?
@@ -20,9 +22,11 @@ docker build -t doctor-search-mcp .
 docker run -i --rm doctor-search-mcp
 ```
 
+> **Note:** The server will build successfully but won't process MCP requests until the core modules are implemented. See Status above.
+
 ## MCP Client Configuration
 
-Add this to your MCP client's configuration to connect:
+Add this to your MCP client's configuration to connect (once the server is functional):
 
 ```json
 {
@@ -84,16 +88,13 @@ Multiple filters combine with AND logic. Results are capped at 50 records.
 
 `total_count` reflects the true number of matches, even when results are capped at 50.
 
+## Limitations
+
+- No first-name search
+- No state-level geographic filter
+- No pagination — results capped at 50 records with no way to fetch beyond that
+- Specialty matching is prefix-based only (no fuzzy or keyword search)
+
 ## Documentation
 
-Design documents live in `docs/`:
-
-| Document | Contents |
-|----------|----------|
-| [Functional Spec](docs/doctor-search-mcp-spec.md) | Tool interface, parameters, validation rules, examples |
-| [Architecture](docs/doctor-search-mcp-architecture.md) | Datastore, schema, module design, data flow |
-| [Interface Definition](docs/doctor-search-mcp-interface.md) | MCP protocol details, input/output schemas, error messages |
-| [Data Import](docs/doctor-search-mcp-data-import.md) | MySQL-to-SQLite import strategy |
-| [Infrastructure](docs/doctor-search-mcp-infrastructure.md) | Docker, configuration, deployment |
-| [Testing](docs/doctor-search-mcp-testing.md) | Test strategy and categories |
-| [Acceptance Tests](docs/doctor-search-mcp-acceptance-tests.md) | Comprehensive test spec (99 tests) |
+Design documents live in `docs/`. See [AGENTS.md](AGENTS.md) for a full index.
