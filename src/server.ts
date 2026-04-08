@@ -67,7 +67,18 @@ export function createServer(): Server {
       };
     }
 
-    const input = (request.params.arguments ?? {}) as DoctorSearchInput;
+    const raw = request.params.arguments ?? {};
+    const input: DoctorSearchInput = {};
+    for (const key of ["lastname", "specialty", "gender", "zipcode"] as const) {
+      if (key in raw && typeof raw[key] === "string") {
+        input[key] = raw[key] as string;
+      } else if (key in raw) {
+        return {
+          content: [{ type: "text" as const, text: `Invalid ${key}: must be a string.` }],
+          isError: true,
+        };
+      }
+    }
     const error = validate(input);
     if (error) {
       return {

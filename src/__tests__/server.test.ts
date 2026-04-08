@@ -141,6 +141,17 @@ describe("createServer", () => {
       expect(text).toBe("Internal error: please try again later.");
     });
 
+    it("returns error for unknown tool name", async () => {
+      const result = await client.callTool({
+        name: "unknown-tool",
+        arguments: {},
+      });
+
+      expect(result.isError).toBe(true);
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toBe("Unknown tool: unknown-tool");
+    });
+
     it("handles empty arguments as empty object", async () => {
       mockValidate.mockReturnValueOnce("At least one filter is required.");
 

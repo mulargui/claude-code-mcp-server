@@ -18,6 +18,15 @@ function normalizeGender(gender: string): string {
   return gender;
 }
 
+/**
+ * Picks which specialty string to return in a doctor record.
+ *
+ * When a specialty filter is active, return whichever column matched the
+ * prefix (if both match, return the longer one so the user sees the most
+ * specific label). When no filter is active, return the longer of the two
+ * columns. Classification wins ties in both cases because it represents
+ * the primary taxonomy category.
+ */
 function resolveSpecialty(
   classification: string,
   specialization: string,
@@ -38,7 +47,6 @@ function resolveSpecialty(
     if (clsMatches) return cls;
   }
 
-  // No specialty filter or no match: return the longer (classification wins ties)
   if (spec.length > cls.length) return spec;
   return cls;
 }
@@ -83,7 +91,11 @@ export function searchDoctors(input: DoctorSearchInput): SearchResult {
     params.push(input.zipcode);
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  if (conditions.length === 0) {
+    throw new Error("searchDoctors called with no filters");
+  }
+
+  const whereClause = `WHERE ${conditions.join(" AND ")}`;
 
   const countRow = db
     .prepare(`SELECT COUNT(*) as count FROM doctors ${whereClause}`)
@@ -92,9 +104,9 @@ export function searchDoctors(input: DoctorSearchInput): SearchResult {
 
   const rows = db
     .prepare(
-      `SELECT npi, last_name, first_name, classification, specialization, gender, address, city, zipcode, phone FROM doctors ${whereClause} ORDER BY npi ASC LIMIT ${RESULT_LIMIT}`
+      `SELECT npi, last_name, first_name, classification, specialization, gender, address, city, zipcode, phone FROM doctors ${whereClause} ORDER BY npi ASC LIMIT ?`
     )
-    .all(...params) as RawRow[];
+    .all(...params, RESULT_LIMIT) as RawRow[];
 
   const doctors: DoctorRecord[] = rows.map((row) => ({
     npi: row.npi,
