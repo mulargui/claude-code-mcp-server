@@ -5,3 +5,5 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Preferences
 
 - Use `curl` instead of web search when fetching external data.
+
+@AGENTS.md
