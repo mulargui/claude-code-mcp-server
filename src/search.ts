@@ -47,13 +47,13 @@ interface RawRow {
   npi: string;
   last_name: string;
   first_name: string;
-  classification: string;
-  specialization: string;
-  gender: string;
-  address: string;
-  city: string;
-  zipcode: string;
-  phone: string;
+  classification: string | null;
+  specialization: string | null;
+  gender: string | null;
+  address: string | null;
+  city: string | null;
+  zipcode: string | null;
+  phone: string | null;
 }
 
 export function searchDoctors(input: DoctorSearchInput): SearchResult {
@@ -62,13 +62,13 @@ export function searchDoctors(input: DoctorSearchInput): SearchResult {
   const params: unknown[] = [];
 
   if (input.lastname !== undefined) {
-    conditions.push("last_name LIKE ? || '%' COLLATE NOCASE");
+    conditions.push("last_name LIKE ? || '%'");
     params.push(input.lastname);
   }
 
   if (input.specialty !== undefined) {
     conditions.push(
-      "(classification LIKE ? || '%' COLLATE NOCASE OR specialization LIKE ? || '%' COLLATE NOCASE)"
+      "(classification LIKE ? || '%' OR specialization LIKE ? || '%')"
     );
     params.push(input.specialty, input.specialty);
   }
@@ -100,12 +100,12 @@ export function searchDoctors(input: DoctorSearchInput): SearchResult {
     npi: row.npi,
     lastname: row.last_name,
     firstname: row.first_name,
-    specialty: resolveSpecialty(row.classification, row.specialization, input.specialty),
-    gender: row.gender,
-    address: row.address,
-    city: row.city,
-    zipcode: row.zipcode,
-    phone: row.phone,
+    specialty: resolveSpecialty(row.classification ?? "", row.specialization ?? "", input.specialty),
+    gender: row.gender ?? "",
+    address: row.address ?? "",
+    city: row.city ?? "",
+    zipcode: row.zipcode ?? "",
+    phone: row.phone ?? "",
   }));
 
   return { total_count: totalCount, doctors };

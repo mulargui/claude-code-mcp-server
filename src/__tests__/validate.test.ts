@@ -131,6 +131,18 @@ describe("validate", () => {
         "Invalid lastname: must be at least 3 characters, alphabetic and hyphens only."
       );
     });
+
+    it("rejects all-hyphen input", () => {
+      expect(validate({ lastname: "---" })).toBe(
+        "Invalid lastname: must be at least 3 characters, alphabetic and hyphens only."
+      );
+    });
+
+    it("rejects leading hyphen", () => {
+      expect(validate({ lastname: "-Smith" })).toBe(
+        "Invalid lastname: must be at least 3 characters, alphabetic and hyphens only."
+      );
+    });
   });
 
   // --- Specialty validation ---
@@ -174,6 +186,18 @@ describe("validate", () => {
 
     it("rejects empty string", () => {
       expect(validate({ specialty: "" })).toBe(
+        "Invalid specialty: must be at least 3 characters, alphabetic, spaces, and hyphens only."
+      );
+    });
+
+    it("rejects all-space input", () => {
+      expect(validate({ specialty: "   " })).toBe(
+        "Invalid specialty: must be at least 3 characters, alphabetic, spaces, and hyphens only."
+      );
+    });
+
+    it("rejects all-hyphen input", () => {
+      expect(validate({ specialty: "---" })).toBe(
         "Invalid specialty: must be at least 3 characters, alphabetic, spaces, and hyphens only."
       );
     });

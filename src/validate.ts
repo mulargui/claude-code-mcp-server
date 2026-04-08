@@ -10,8 +10,8 @@
  */
 import type { DoctorSearchInput } from "./types.js";
 
-const LASTNAME_RE = /^[A-Za-z-]+$/;
-const SPECIALTY_RE = /^[A-Za-z -]+$/;
+const LASTNAME_RE = /^[A-Za-z][A-Za-z-]*$/;
+const SPECIALTY_RE = /^(?=.*[A-Za-z])[A-Za-z -]+$/;
 const ZIPCODE_RE = /^[0-9]{5}$/;
 const VALID_GENDERS = new Set(["male", "female", "M", "F"]);
 
