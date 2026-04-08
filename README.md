@@ -1,7 +1,5 @@
 # Doctor Search MCP Server
 
-> **Status: Work in Progress** — The data import pipeline, database module, types, tests, and Docker infrastructure are complete. The core server modules (`index.ts`, `server.ts`, `search.ts`, `validate.ts`) are stubbed and not yet functional. The server cannot process MCP requests until these are implemented.
-
 An MCP server that lets LLMs search a directory of ~85,000 US doctors by last name, specialty, gender, and zip code.
 
 ## What is this?
@@ -22,11 +20,9 @@ docker build -t doctor-search-mcp .
 docker run -i --rm doctor-search-mcp
 ```
 
-> **Note:** The server will build successfully but won't process MCP requests until the core modules are implemented. See Status above.
-
 ## MCP Client Configuration
 
-Add this to your MCP client's configuration to connect (once the server is functional):
+Add this to your MCP client's configuration to connect:
 
 ```json
 {

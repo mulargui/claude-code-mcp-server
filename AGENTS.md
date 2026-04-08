@@ -16,14 +16,19 @@ Doctor Search MCP Server — a TypeScript MCP server that exposes a single tool 
 ├── CLAUDE.md               # Claude Code instructions
 ├── AGENTS.md               # This file
 ├── src/
-│   ├── index.ts            # [stub] Entry point: open DB, start server, stdio transport
-│   ├── server.ts           # [stub] MCP server setup, tool registration, call handler
+│   ├── index.ts            # Entry point: open DB, start server, stdio transport
+│   ├── server.ts           # MCP server setup, tool registration, call handler
 │   ├── db.ts               # SQLite connection manager (read-only singleton)
-│   ├── search.ts           # [stub] Query builder & executor
-│   ├── validate.ts         # [stub] Input validation
+│   ├── search.ts           # Query builder & executor
+│   ├── validate.ts         # Input validation
 │   ├── types.ts            # Shared TypeScript interfaces
 │   └── __tests__/
-│       └── db.test.ts      # DB module lifecycle tests
+│       ├── db.test.ts              # DB module lifecycle tests
+│       ├── validate.test.ts        # Input validation unit tests
+│       ├── search.test.ts          # Search query builder unit tests
+│       ├── server.test.ts          # MCP server integration tests
+│       ├── integration.test.ts     # Full-stack integration tests
+│       └── acceptance.test.ts      # Comprehensive acceptance tests (132 tests)
 ├── data/
 │   ├── healthylinkxdump.sql  # Source MySQL dump (~85k records)
 │   ├── doctors.db            # Generated SQLite DB (gitignored)
@@ -79,22 +84,18 @@ Key details for implementers:
 
 ## Implementation Status
 
-### Complete
+All modules are fully implemented and tested.
+
 - Data import pipeline (`data/`): MySQL dump parser, SQLite import, verification
 - Database module (`src/db.ts`): read-only singleton connection
 - Type definitions (`src/types.ts`): all interfaces
-- Test suite: unit tests for parser and DB, integration tests for import pipeline
+- Validation (`src/validate.ts`): combination rules and individual field constraints
+- Search (`src/search.ts`): dynamic WHERE clause builder, parameterized queries, specialty resolution
+- Server (`src/server.ts`): MCP server with tool registration and call handler
+- Entry point (`src/index.ts`): DB init, server creation, stdio transport, graceful shutdown
+- Test suite: unit tests (validate, search, db, parser), integration tests (server, import pipeline), acceptance tests (132 tests across 25 categories)
 - Infrastructure: Dockerfile, package.json, tsconfig.json, vitest config
 - Documentation: full spec, architecture, interface, testing, and acceptance test docs in `docs/`
-
-### Stubbed (not yet implemented)
-
-To implement, read `docs/doctor-search-mcp-spec.md` first, then implement in order: `validate.ts`, `search.ts`, `server.ts`, `index.ts`.
-
-- `src/index.ts` — currently just `console.log("doctor-search-mcp server starting")`; no exports. Needs: open DB, create server, connect stdio transport, graceful shutdown.
-- `src/server.ts` — exports `createServer(): void` (empty body). Needs: instantiate MCP `Server`, register tool with JSON schema, implement call handler that calls `validate()` then `searchDoctors()`.
-- `src/search.ts` — exports `searchDoctors(_input: DoctorSearchInput): SearchResult` (returns `{ total_count: 0, doctors: [] }`). Needs: dynamic WHERE clause builder, parameterized queries, COUNT query, LIMIT 50, specialty maps to both `classification` and `specialization` columns.
-- `src/validate.ts` — exports `validate(_input: DoctorSearchInput): string | null` (returns `null`). Needs: combination rules (at least one filter, must include lastname or specialty), individual field validation, descriptive error messages.
 
 ## Conventions
 
@@ -117,6 +118,6 @@ To implement, read `docs/doctor-search-mcp-spec.md` first, then implement in ord
 | `docs/doctor-search-mcp-data-import.md` | Data import strategy and implementation |
 | `docs/doctor-search-mcp-infrastructure.md` | Docker, config, deployment |
 | `docs/doctor-search-mcp-testing.md` | Test strategy and categories |
-| `docs/doctor-search-mcp-acceptance-tests.md` | Comprehensive acceptance test spec (99 tests across 13 categories) |
+| `docs/doctor-search-mcp-acceptance-tests.md` | Comprehensive acceptance test spec (132 tests across 25 categories) |
 
-Additional `*-conversation.md` and `*-critique.md` files in `docs/` contain design discussion history and review feedback for each document.
+Design discussion history (`*-conversation.md`) and review feedback (`*-critique.md`) live in `docs/history/`.
