@@ -2,7 +2,7 @@
 
 ## Overview
 
-An MCP server that exposes a single tool, `doctor-search`, allowing clients to search for doctors by last name, specialty, gender, and/or zip code.
+An MCP server that exposes two tools: `doctor-search` for searching doctors by last name, specialty, gender, and/or zip code, and `specialty-list` for retrieving the list of available medical specialties.
 
 ### Why?
 
@@ -12,7 +12,7 @@ At this time the MCP protocol (https://modelcontextprotocol.io/) is the gold sta
 
 There is a growing interest in the A2A protocol (https://a2a-protocol.org/), but the decision has been to start with the MCP protocol, which is well-known and broadly adopted, and postpone to implement the A2A protocol to the future.
 
-## Tool
+## Tools
 
 ### `doctor-search`
 
@@ -105,5 +105,40 @@ Each doctor record contains:
 {
   "specialty": "cardiology",
   "gender": "other"
+}
+```
+
+### `specialty-list`
+
+Returns the full list of distinct medical specialties available in the database. Specialties are drawn from the `classification` column.
+
+#### Input
+
+None — this tool takes no parameters.
+
+#### Output
+
+| Field          | Type     | Description                                          |
+|----------------|----------|------------------------------------------------------|
+| `specialties`  | string[] | Alphabetically sorted list of distinct specialty names |
+
+#### Error Cases
+
+| Condition          | Error Message                              |
+|--------------------|--------------------------------------------|
+| Internal failure   | "Internal error: please try again later."  |
+
+#### Example
+
+**Response:**
+```json
+{
+  "specialties": [
+    "Allergy & Immunology",
+    "Anesthesiology",
+    "Cardiology",
+    "Dermatology",
+    "..."
+  ]
 }
 ```
