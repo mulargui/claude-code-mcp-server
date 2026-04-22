@@ -2,11 +2,11 @@
 
 ## Context
 
-The doctor-search MCP server has stub implementations for `validate.ts` and `search.ts`. All types, the DB module, and the data import pipeline are already complete. This step implements the two core business logic modules so that validated, parameterized queries can run against the SQLite database.
+The doctor-search MCP server has stub implementations for `validate.ts` and `search.ts`. All types, the DB module, and the data import pipeline are already complete. This step implements the two core business logic modules so that validated, parameterized queries can run against the SQLite database. The search module supports both the `doctor-search` tool (filtered queries) and the `specialty-list` tool (distinct specialty listing).
 
 ## Scope
 
-Two source files + two test files. No changes to `server.ts`, `index.ts`, `db.ts`, or `types.ts`.
+Two source files + two test files. No changes to `index.ts` or `db.ts`.
 
 ---
 
@@ -60,6 +60,14 @@ Cover all acceptance test categories 2-4, 18, 21 (combination rules, individual 
 
 Uses `getDb()` from `db.ts` for the database connection. Uses `better-sqlite3`'s synchronous API (`.prepare().all()`, `.prepare().get()`).
 
+### `listSpecialties(): SpecialtyListResult`
+
+1. **Run query** — `SELECT DISTINCT classification FROM doctors WHERE classification IS NOT NULL AND classification != '' ORDER BY classification`
+2. **Map rows** — extract the `classification` string from each row into a flat array
+3. Return `{ specialties }` — an alphabetically sorted array of distinct specialty names
+
+Uses `getDb()` from `db.ts`. Same synchronous API (`.prepare().all()`).
+
 ## Step 4: Write tests for `src/search.ts`
 
 **File:** `src/__tests__/search.test.ts`
@@ -70,6 +78,12 @@ Tests need a real SQLite database with known test data (the same dataset from th
 - Calls `searchDoctors()` and asserts results
 
 Cover acceptance test categories 5-12, 19-20, 22, 24-25 (prefix matching, case insensitivity, exact matching, AND combination, result cap, output format, specialty mapping, no results, ordering, specialty defaults, tiebreaker).
+
+Additionally, cover `listSpecialties()` (acceptance test category 26):
+- Returns distinct classification values sorted alphabetically
+- Excludes null and empty classifications
+- Contains known specialties from test data (Internal Medicine, Cardiology, Family Medicine, etc.)
+- Returns no duplicates even when multiple doctors share a classification
 
 **DB mocking approach:** Since `search.ts` calls `getDb()`, tests will mock the `db.ts` module to return the in-memory test database instead of the file-based one.
 

@@ -1,8 +1,8 @@
 /**
- * src/__tests__/search.test.ts — Doctor Search Query Tests
+ * src/__tests__/search.test.ts — Doctor Search & Specialty List Query Tests
  *
- * Tests searchDoctors() against an in-memory SQLite database seeded
- * with controlled test data. Mocks db.ts to return the test database.
+ * Tests searchDoctors() and listSpecialties() against an in-memory SQLite
+ * database seeded with controlled test data. Mocks db.ts to return the test database.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import Database from "better-sqlite3";
@@ -16,7 +16,7 @@ vi.mock("../db.js", () => ({
 }));
 
 // Import after mock is set up
-const { searchDoctors } = await import("../search.js");
+const { searchDoctors, listSpecialties } = await import("../search.js");
 
 const TEST_DATA = [
   ["1000000001", "Smith", "John", "Internal Medicine", "Cardiovascular Disease", "M", "100 Main St", "Los Angeles", "90210", "3105551001"],
@@ -425,5 +425,67 @@ describe("specialty tiebreaker", () => {
     expect(doc?.specialty).toBe("Sports Orthopedics");
 
     testDb.prepare("DELETE FROM doctors WHERE npi = '9000000002'").run();
+  });
+});
+
+// --- listSpecialties ---
+
+describe("listSpecialties", () => {
+  it("returns distinct classification values", () => {
+    const result = listSpecialties();
+    const unique = new Set(result.specialties);
+    expect(unique.size).toBe(result.specialties.length);
+  });
+
+  it("returns specialties sorted alphabetically", () => {
+    const result = listSpecialties();
+    const sorted = [...result.specialties].sort();
+    expect(result.specialties).toEqual(sorted);
+  });
+
+  it("contains known specialties from test data", () => {
+    const result = listSpecialties();
+    expect(result.specialties).toContain("Internal Medicine");
+    expect(result.specialties).toContain("Family Medicine");
+    expect(result.specialties).toContain("Cardiology");
+    expect(result.specialties).toContain("Orthopedic Surgery");
+    expect(result.specialties).toContain("Psychiatry");
+    expect(result.specialties).toContain("Pediatrics");
+  });
+
+  it("excludes empty classification values", () => {
+    const insert = testDb.prepare(
+      "INSERT INTO doctors VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    insert.run("9000000003", "EmptySpec", "Test", "", "Something", "M", "1 Test", "Test", "00001", "5550000001");
+
+    const result = listSpecialties();
+    expect(result.specialties).not.toContain("");
+
+    testDb.prepare("DELETE FROM doctors WHERE npi = '9000000003'").run();
+  });
+
+  it("excludes null classification values", () => {
+    const insert = testDb.prepare(
+      "INSERT INTO doctors VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    insert.run("9000000004", "NullSpec", "Test", null, "Something", "M", "1 Test", "Test", "00001", "5550000001");
+
+    const result = listSpecialties();
+    for (const s of result.specialties) {
+      expect(s).not.toBeNull();
+      expect(s).not.toBe("");
+    }
+
+    testDb.prepare("DELETE FROM doctors WHERE npi = '9000000004'").run();
+  });
+
+  it("returns the correct result shape", () => {
+    const result = listSpecialties();
+    expect(result).toHaveProperty("specialties");
+    expect(Array.isArray(result.specialties)).toBe(true);
+    for (const s of result.specialties) {
+      expect(typeof s).toBe("string");
+    }
   });
 });

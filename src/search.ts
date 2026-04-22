@@ -1,14 +1,15 @@
 /**
- * src/search.ts — Doctor Search Query
+ * src/search.ts — Doctor Search & Specialty List Queries
  *
  * Builds and executes parameterized SQL queries against the doctors
  * SQLite database based on validated search input parameters.
  *
  * Handles dynamic WHERE clause construction, gender normalization,
  * specialty-to-column mapping, result capping (50), and total count.
+ * Also provides listSpecialties() for retrieving distinct specialty names.
  */
 import { getDb } from "./db.js";
-import type { DoctorSearchInput, DoctorRecord, SearchResult } from "./types.js";
+import type { DoctorSearchInput, DoctorRecord, SearchResult, SpecialtyListResult } from "./types.js";
 
 const RESULT_LIMIT = 50;
 
@@ -121,4 +122,14 @@ export function searchDoctors(input: DoctorSearchInput): SearchResult {
   }));
 
   return { total_count: totalCount, doctors };
+}
+
+export function listSpecialties(): SpecialtyListResult {
+  const db = getDb();
+  const rows = db
+    .prepare(
+      "SELECT DISTINCT classification FROM doctors WHERE classification IS NOT NULL AND classification != '' ORDER BY classification"
+    )
+    .all() as { classification: string }[];
+  return { specialties: rows.map((row) => row.classification) };
 }

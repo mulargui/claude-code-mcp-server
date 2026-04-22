@@ -2,7 +2,7 @@
 
 ## Overview
 
-Acceptance tests for the `doctor-search` MCP server interface. These tests validate the server's behavior as observed by an MCP client over stdio transport. They cover the full surface: MCP protocol compliance, input validation, search logic, output format, and error handling.
+Acceptance tests for the `doctor-search` MCP server tools. These tests validate the server's behavior as observed by an MCP client over stdio transport. They cover the full surface: MCP protocol compliance, input validation, search logic, output format, error handling, and the specialty list tool.
 
 Tests use the **Given-When-Then** style. Each test assumes the server is running with a populated SQLite database containing known test data unless otherwise stated.
 
@@ -31,17 +31,19 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 
 **Given** the MCP server is started via stdio transport
 **When** the client sends an `initialize` request
-**Then** the server responds with `name: "doctor-search"` and `version: "1.0.0"`
+**Then** the server responds with `name: "doctor-search"` and `version: "1.1.0"`
 **And** the capabilities include `tools` but not `resources` or `prompts`
 
 ### 1.2 Tool listing
 
 **Given** the server is initialized
 **When** the client sends a `tools/list` request
-**Then** the response contains exactly one tool named `doctor-search`
-**And** the tool has a `description` string that mentions prefix matching and the 50-result cap
-**And** the tool has an `inputSchema` with properties `lastname`, `specialty`, `gender`, `zipcode`
-**And** the `inputSchema` has `additionalProperties: false`
+**Then** the response contains exactly two tools: `doctor-search` and `specialty-list`
+**And** `doctor-search` has a `description` string that mentions prefix matching and the 50-result cap
+**And** `doctor-search` has an `inputSchema` with properties `lastname`, `specialty`, `gender`, `zipcode`
+**And** `doctor-search`'s `inputSchema` has `additionalProperties: false`
+**And** `specialty-list` has a `description` string that mentions listing available specialties
+**And** `specialty-list` has an `inputSchema` with no properties and `additionalProperties: false`
 
 ### 1.3 Tool call with valid input returns success format
 
@@ -994,11 +996,74 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 
 ---
 
+## 26. Specialty List Tool
+
+### 26.1 Calling with no arguments returns success
+
+**Given** the server is initialized
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** the response is a `CallToolResult`
+**And** `isError` is absent or `false`
+
+### 26.2 Response contains specialties as a string array
+
+**Given** the server is initialized
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** the `text` field contains valid JSON with a `specialties` field
+**And** `specialties` is an array of strings
+
+### 26.3 Specialties are sorted alphabetically
+
+**Given** the server is initialized
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** the `specialties` array is sorted in ascending alphabetical order
+
+### 26.4 Specialties are distinct (no duplicates)
+
+**Given** the database contains multiple doctors with the same classification
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** each specialty name appears exactly once in the `specialties` array
+
+### 26.5 Known test data specialties are present
+
+**Given** the test data contains doctors with classifications `Internal Medicine`, `Family Medicine`, `Cardiology`, `Orthopedic Surgery`, `Psychiatry`, and `Pediatrics`
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** all six of those specialties are present in the `specialties` array
+
+### 26.6 Empty or null classifications are excluded
+
+**Given** the database contains doctors with empty or null `classification` values
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** the `specialties` array does not contain empty strings or null values
+
+### 26.7 Unexpected arguments rejected
+
+**Given** the `specialty-list` input schema has `additionalProperties: false`
+**When** the client calls `specialty-list` with `arguments: { "prefix": "Card" }`
+**Then** the response has `isError: true` or the server rejects the unknown property
+
+### 26.8 Response content block structure
+
+**Given** the server is initialized
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** `content` has exactly one element with `type: "text"`
+**And** the `text` field is valid JSON containing `specialties` as its only key
+
+### 26.9 Database failure returns internal error
+
+**Given** the SQLite database is unavailable
+**When** the client calls `specialty-list` with `arguments: {}`
+**Then** the response has `isError: true`
+**And** the message is `"Internal error: please try again later."`
+**And** no internal details are leaked
+
+---
+
 ## Test Summary
 
 | Category | Test Count | Coverage |
 |----------|-----------|----------|
-| MCP Protocol Compliance | 5 | Server init, tool listing, success/error format, unknown tool |
+| MCP Protocol Compliance | 5 | Server init, tool listing (both tools), success/error format, unknown tool |
 | Filter Combination Rules | 11 | All valid/invalid combinations of required filters |
 | Individual Field Validation | 32 | Boundary values, invalid characters, empty strings for each field |
 | Multiple Invalid Fields | 3 | Simultaneous validation errors |
@@ -1023,4 +1088,5 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 | Repeated Calls | 1 | Consistency across sequential calls |
 | Empty Database | 1 | Valid query against zero rows |
 | Specialty Tiebreaker | 2 | Equal-length and different-length tiebreaker |
-| **Total** | **132** | |
+| Specialty List Tool | 9 | No-arg success, output format, sorting, dedup, known values, nulls excluded, bad args, content block, DB failure |
+| **Total** | **141** | |

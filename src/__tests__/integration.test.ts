@@ -71,10 +71,12 @@ describe("integration", () => {
     testDb?.close();
   });
 
-  it("lists the doctor-search tool", async () => {
+  it("lists the doctor-search and specialty-list tools", async () => {
     const result = await client.listTools();
-    expect(result.tools).toHaveLength(1);
-    expect(result.tools[0].name).toBe("doctor-search");
+    expect(result.tools).toHaveLength(2);
+    const names = result.tools.map((t) => t.name);
+    expect(names).toContain("doctor-search");
+    expect(names).toContain("specialty-list");
   });
 
   it("returns search results for a valid query", async () => {

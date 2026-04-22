@@ -2,7 +2,7 @@
 
 ## Context
 
-We're building a local MCP server (stdio transport) in TypeScript that exposes a single `doctor-search` tool. The data comes from a MySQL dump (`data/healthylinkxdump.sql`) containing ~21MB of NPI provider data. The server is read-only and local-only.
+We're building a local MCP server (stdio transport) in TypeScript that exposes two tools: `doctor-search` and `specialty-list`. The data comes from a MySQL dump (`data/healthylinkxdump.sql`) containing ~21MB of NPI provider data. The server is read-only and local-only.
 
 ## Datastore
 
@@ -91,9 +91,11 @@ The `taxonomy` and `specializations` tables are **not needed** — specialty val
 
 ### `src/server.ts` — MCP Server Setup
 - Uses `@modelcontextprotocol/sdk` to create a `Server`
-- Registers the `doctor-search` tool with its JSON Schema input definition
-- On tool call: validates input via `validate.ts`, then queries via `search.ts`
+- Registers two tools: `doctor-search` (with its JSON Schema input definition) and `specialty-list` (no parameters)
+- On `doctor-search` call: validates input via `validate.ts`, then queries via `search.ts`
+- On `specialty-list` call: queries via `search.ts` to retrieve distinct specialties
 - Returns results as structured content, or error messages for invalid input
+- Returns `"Internal error: please try again later."` for unknown tool names or unexpected failures
 
 ### `src/db.ts` — Database Access
 - Exports a function to open the SQLite DB in read-only mode using `better-sqlite3`
@@ -101,14 +103,16 @@ The `taxonomy` and `specializations` tables are **not needed** — specialty val
 - Provides the DB instance to other modules
 
 ### `src/search.ts` — Query Builder
-- Builds parameterized SQL queries based on validated filters
-- The `lastname` filter uses prefix matching: `lastname LIKE ? || '%' COLLATE NOCASE`
-- The `specialty` filter uses prefix matching against both columns: `(classification LIKE ? || '%' COLLATE NOCASE OR specialization LIKE ? || '%' COLLATE NOCASE)`
-- All other filters are direct equality checks (case-insensitive via `COLLATE NOCASE`)
-- Runs a `SELECT COUNT(*)` query (same filters, no LIMIT) to get the exact total match count
-- Appends `LIMIT 50` to the results query
-- Maps the output `specialty` field: when both `classification` and `specialization` match the query prefix, returns the longer string; when only one matches, returns that one
-- Returns `{ total_count, doctors }` — total count plus the capped result list
+- **`searchDoctors`**: Builds parameterized SQL queries based on validated filters
+  - The `lastname` filter uses prefix matching: `lastname LIKE ? || '%' COLLATE NOCASE`
+  - The `specialty` filter uses prefix matching against both columns: `(classification LIKE ? || '%' COLLATE NOCASE OR specialization LIKE ? || '%' COLLATE NOCASE)`
+  - All other filters are direct equality checks (case-insensitive via `COLLATE NOCASE`)
+  - Runs a `SELECT COUNT(*)` query (same filters, no LIMIT) to get the exact total match count
+  - Appends `LIMIT 50` to the results query
+  - Maps the output `specialty` field: when both `classification` and `specialization` match the query prefix, returns the longer string; when only one matches, returns that one
+  - Returns `{ total_count, doctors }` — total count plus the capped result list
+- **`listSpecialties`**: Queries `SELECT DISTINCT classification FROM doctors WHERE classification IS NOT NULL ORDER BY classification`
+  - Returns `{ specialties }` — an alphabetically sorted array of distinct specialty names
 
 ### `src/validate.ts` — Input Validation
 - Validates the filter combination rules (at least one filter; must include `lastname` or `specialty`)
@@ -121,6 +125,7 @@ The `taxonomy` and `specializations` tables are **not needed** — specialty val
 ### `src/types.ts` — Types
 - `DoctorSearchInput`: the tool input shape
 - `DoctorRecord`: the output record shape (includes `npi` as a unique identifier)
+- `SpecialtyListResult`: the `specialty-list` output shape (`{ specialties: string[] }`)
 - `ValidationError`: error type
 
 ### `data/import-data.ts` — Data Import
@@ -145,9 +150,13 @@ The `taxonomy` and `specializations` tables are **not needed** — specialty val
 ## Data Flow
 
 ```
-Tool call → server.ts
+doctor-search call → server.ts
   → validate.ts (reject bad input early)
-  → search.ts (build & run SQL query)
+  → search.ts → searchDoctors (build & run SQL query)
+  → return results to client
+
+specialty-list call → server.ts
+  → search.ts → listSpecialties (query distinct classifications)
   → return results to client
 ```
 
@@ -156,10 +165,11 @@ Tool call → server.ts
 1. **Build**: Run `docker build -t doctor-search-mcp .` — verify the image builds successfully (this compiles TypeScript, imports the data, and generates `data/doctors.db`)
 2. **Manual test**: Run `docker run -i --rm doctor-search-mcp` and send MCP tool calls via stdin (or connect from Claude Code using the MCP client configuration above)
 3. **Smoke queries**:
-   - `{"specialty": "Internal Medicine"}` → returns doctors (capped at 50)
-   - `{"lastname": "Smith"}` → returns doctors
-   - `{"gender": "female"}` → rejected (missing lastname/specialty)
-   - `{"specialty": "cardiology", "zipcode": "abc"}` → rejected (invalid zip)
+   - `doctor-search` with `{"specialty": "Internal Medicine"}` → returns doctors (capped at 50)
+   - `doctor-search` with `{"lastname": "Smith"}` → returns doctors
+   - `doctor-search` with `{"gender": "female"}` → rejected (missing lastname/specialty)
+   - `doctor-search` with `{"specialty": "cardiology", "zipcode": "abc"}` → rejected (invalid zip)
+   - `specialty-list` with `{}` → returns sorted list of distinct specialties
 
 ## Container
 

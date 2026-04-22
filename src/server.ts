@@ -2,8 +2,8 @@
  * src/server.ts — MCP Server Setup
  *
  * Creates and configures the MCP server instance, registering
- * the doctor-search tool and wiring up call handling to the
- * validation and search modules.
+ * the doctor-search and specialty-list tools and wiring up call
+ * handling to the validation and search modules.
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
@@ -11,12 +11,12 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { validate } from "./validate.js";
-import { searchDoctors } from "./search.js";
+import { searchDoctors, listSpecialties } from "./search.js";
 import type { DoctorSearchInput } from "./types.js";
 
 export function createServer(): Server {
   const server = new Server(
-    { name: "doctor-search", version: "1.0.0" },
+    { name: "doctor-search", version: "1.1.0" },
     { capabilities: { tools: {} } },
   );
 
@@ -56,13 +56,43 @@ export function createServer(): Server {
           additionalProperties: false,
         },
       },
+      {
+        name: "specialty-list",
+        description:
+          "List all available medical specialties in the doctor directory. " +
+          "Returns an alphabetically sorted list of distinct specialty names. " +
+          "Use this to discover valid specialty values before searching with doctor-search.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {},
+          additionalProperties: false,
+        },
+      },
     ],
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name !== "doctor-search") {
+    const toolName = request.params.name;
+
+    if (toolName === "specialty-list") {
+      try {
+        const result = listSpecialties();
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+        };
+      } catch {
+        return {
+          content: [
+            { type: "text" as const, text: "Internal error: please try again later." },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (toolName !== "doctor-search") {
       return {
-        content: [{ type: "text" as const, text: `Unknown tool: ${request.params.name}` }],
+        content: [{ type: "text" as const, text: `Unknown tool: ${toolName}` }],
         isError: true,
       };
     }

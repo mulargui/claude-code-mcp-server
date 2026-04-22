@@ -2,7 +2,7 @@
 
 ## Context
 
-Project skeleton and container infrastructure for a TypeScript MCP server (`doctor-search` tool, SQLite-backed). No Node/npm required on the host; everything builds inside Docker.
+Project skeleton and container infrastructure for a TypeScript MCP server (`doctor-search` and `specialty-list` tools, SQLite-backed). No Node/npm required on the host; everything builds inside Docker.
 
 ## Decisions
 
@@ -15,7 +15,7 @@ Project skeleton and container infrastructure for a TypeScript MCP server (`doct
 ## Files
 
 ### `package.json`
-- `"name": "doctor-search-mcp"`, `"version": "1.0.0"`, `"type": "module"`
+- `"name": "doctor-search-mcp"`, `"version": "1.1.0"`, `"type": "module"`
 - Scripts: `"build": "tsc"`, `"import-data": "tsx data/import-data.ts"`, `"start": "node dist/index.js"`
 - Dependencies: `@modelcontextprotocol/sdk`, `better-sqlite3`
 - Dev dependencies: `typescript`, `@types/better-sqlite3`, `@types/node`, `tsx`

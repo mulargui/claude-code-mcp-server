@@ -32,14 +32,18 @@ vi.mock("../search.js", () => ({
       },
     ],
   })),
+  listSpecialties: vi.fn(() => ({
+    specialties: ["Cardiology", "Internal Medicine", "Pediatrics"],
+  })),
 }));
 
 import { createServer } from "../server.js";
 import { validate } from "../validate.js";
-import { searchDoctors } from "../search.js";
+import { searchDoctors, listSpecialties } from "../search.js";
 
 const mockValidate = vi.mocked(validate);
 const mockSearchDoctors = vi.mocked(searchDoctors);
+const mockListSpecialties = vi.mocked(listSpecialties);
 
 describe("createServer", () => {
   let server: Server;
@@ -62,10 +66,24 @@ describe("createServer", () => {
   });
 
   describe("tools/list", () => {
-    it("returns the doctor-search tool", async () => {
+    it("returns both tools", async () => {
       const result = await client.listTools();
-      expect(result.tools).toHaveLength(1);
-      expect(result.tools[0].name).toBe("doctor-search");
+      expect(result.tools).toHaveLength(2);
+      const names = result.tools.map((t) => t.name);
+      expect(names).toContain("doctor-search");
+      expect(names).toContain("specialty-list");
+    });
+
+    it("specialty-list has correct input schema", async () => {
+      const result = await client.listTools();
+      const tool = result.tools.find((t) => t.name === "specialty-list");
+      expect(tool).toBeDefined();
+      const schema = tool!.inputSchema;
+      expect(schema.type).toBe("object");
+      expect(schema.properties).toEqual({});
+      expect(
+        (schema as Record<string, unknown>).additionalProperties
+      ).toBe(false);
     });
 
     it("includes the correct input schema", async () => {
@@ -161,6 +179,56 @@ describe("createServer", () => {
       });
 
       expect(mockValidate).toHaveBeenCalledWith({});
+    });
+  });
+
+  describe("tools/call specialty-list", () => {
+    it("returns specialty list on valid call", async () => {
+      const result = await client.callTool({
+        name: "specialty-list",
+        arguments: {},
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect(result.content).toHaveLength(1);
+
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      const parsed = JSON.parse(text);
+      expect(parsed.specialties).toEqual(["Cardiology", "Internal Medicine", "Pediatrics"]);
+    });
+
+    it("calls listSpecialties", async () => {
+      await client.callTool({
+        name: "specialty-list",
+        arguments: {},
+      });
+
+      expect(mockListSpecialties).toHaveBeenCalled();
+    });
+
+    it("does not call validate or searchDoctors", async () => {
+      await client.callTool({
+        name: "specialty-list",
+        arguments: {},
+      });
+
+      expect(mockValidate).not.toHaveBeenCalled();
+      expect(mockSearchDoctors).not.toHaveBeenCalled();
+    });
+
+    it("returns internal error when listSpecialties throws", async () => {
+      mockListSpecialties.mockImplementationOnce(() => {
+        throw new Error("DB unavailable");
+      });
+
+      const result = await client.callTool({
+        name: "specialty-list",
+        arguments: {},
+      });
+
+      expect(result.isError).toBe(true);
+      const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+      expect(text).toBe("Internal error: please try again later.");
     });
   });
 });

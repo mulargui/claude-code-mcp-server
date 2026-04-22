@@ -3,7 +3,7 @@
  *
  * Validates the doctor-search MCP server's behavior through the MCP
  * protocol layer using an in-memory SQLite database with controlled
- * test data. All 132 tests exercise the full stack via Client/Server
+ * test data. All 141 tests exercise the full stack via Client/Server
  * round-trip over InMemoryTransport.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
@@ -70,6 +70,17 @@ async function callToolError(client: Client, args: Record<string, unknown>) {
 
 function npis(doctors: DoctorRecord[]): string[] {
   return doctors.map((d) => d.npi);
+}
+
+async function callSpecialtyList(client: Client, args: Record<string, unknown> = {}) {
+  return client.callTool({ name: "specialty-list", arguments: args });
+}
+
+async function callSpecialtyListSuccess(client: Client) {
+  const result = await callSpecialtyList(client);
+  expect(result.isError).toBeFalsy();
+  const text = (result.content as ContentBlock[])[0].text;
+  return JSON.parse(text) as { specialties: string[] };
 }
 
 // ---------------------------------------------------------------------------
@@ -154,18 +165,29 @@ describe("acceptance tests", () => {
       expect(tools.tools.length).toBeGreaterThan(0);
     });
 
-    it("1.2 tool listing returns doctor-search with correct schema", async () => {
+    it("1.2 tool listing returns doctor-search and specialty-list with correct schemas", async () => {
       const result = await client.listTools();
-      expect(result.tools).toHaveLength(1);
-      const tool = result.tools[0];
-      expect(tool.name).toBe("doctor-search");
-      expect(tool.description).toMatch(/prefix/i);
-      expect(tool.description).toMatch(/50/);
-      expect(tool.inputSchema.properties).toHaveProperty("lastname");
-      expect(tool.inputSchema.properties).toHaveProperty("specialty");
-      expect(tool.inputSchema.properties).toHaveProperty("gender");
-      expect(tool.inputSchema.properties).toHaveProperty("zipcode");
-      expect((tool.inputSchema as Record<string, unknown>).additionalProperties).toBe(false);
+      expect(result.tools).toHaveLength(2);
+
+      const searchTool = result.tools.find((t) => t.name === "doctor-search");
+      expect(searchTool).toBeDefined();
+      expect(searchTool!.description).toMatch(/prefix/i);
+      expect(searchTool!.description).toMatch(/50/);
+      expect(searchTool!.inputSchema.properties).toHaveProperty("lastname");
+      expect(searchTool!.inputSchema.properties).toHaveProperty("specialty");
+      expect(searchTool!.inputSchema.properties).toHaveProperty("gender");
+      expect(searchTool!.inputSchema.properties).toHaveProperty("zipcode");
+      expect(
+        (searchTool!.inputSchema as Record<string, unknown>).additionalProperties
+      ).toBe(false);
+
+      const listTool = result.tools.find((t) => t.name === "specialty-list");
+      expect(listTool).toBeDefined();
+      expect(listTool!.description).toMatch(/specialt/i);
+      expect(listTool!.inputSchema.properties).toEqual({});
+      expect(
+        (listTool!.inputSchema as Record<string, unknown>).additionalProperties
+      ).toBe(false);
     });
 
     it("1.3 tool call with valid input returns success format", async () => {
@@ -1115,6 +1137,94 @@ describe("acceptance tests", () => {
       expect(doc).toBeDefined();
       // "Sleep Medicine" (14) == "Sleep Disorder" (14) → classification wins
       expect(doc!.specialty).toBe("Sleep Medicine");
+    });
+  });
+
+  // =========================================================================
+  // 26. Specialty List Tool
+  // =========================================================================
+  describe("26. Specialty List Tool", () => {
+    it("26.1 calling with no arguments returns success", async () => {
+      const result = await callSpecialtyList(client);
+      expect(result.isError).toBeFalsy();
+    });
+
+    it("26.2 response contains specialties as a string array", async () => {
+      const parsed = await callSpecialtyListSuccess(client);
+      expect(parsed).toHaveProperty("specialties");
+      expect(Array.isArray(parsed.specialties)).toBe(true);
+      for (const s of parsed.specialties) {
+        expect(typeof s).toBe("string");
+      }
+    });
+
+    it("26.3 specialties are sorted alphabetically", async () => {
+      const parsed = await callSpecialtyListSuccess(client);
+      const sorted = [...parsed.specialties].sort();
+      expect(parsed.specialties).toEqual(sorted);
+    });
+
+    it("26.4 specialties are distinct (no duplicates)", async () => {
+      const parsed = await callSpecialtyListSuccess(client);
+      const unique = new Set(parsed.specialties);
+      expect(unique.size).toBe(parsed.specialties.length);
+    });
+
+    it("26.5 known test data specialties are present", async () => {
+      const parsed = await callSpecialtyListSuccess(client);
+      expect(parsed.specialties).toContain("Internal Medicine");
+      expect(parsed.specialties).toContain("Family Medicine");
+      expect(parsed.specialties).toContain("Cardiology");
+      expect(parsed.specialties).toContain("Orthopedic Surgery");
+      expect(parsed.specialties).toContain("Psychiatry");
+      expect(parsed.specialties).toContain("Pediatrics");
+    });
+
+    it("26.6 empty or null classifications are excluded", async () => {
+      const parsed = await callSpecialtyListSuccess(client);
+      for (const s of parsed.specialties) {
+        expect(s).not.toBe("");
+        expect(s).not.toBeNull();
+      }
+    });
+
+    it("26.7 unexpected arguments handled", async () => {
+      const result = await callSpecialtyList(client, { prefix: "Card" });
+      // The MCP SDK may reject based on additionalProperties: false,
+      // or the server may ignore extra args. Either behavior is acceptable.
+      if (!result.isError) {
+        const text = (result.content as ContentBlock[])[0].text;
+        const parsed = JSON.parse(text);
+        expect(Array.isArray(parsed.specialties)).toBe(true);
+      }
+    });
+
+    it("26.8 response content block structure", async () => {
+      const result = await callSpecialtyList(client);
+      expect(result.isError).toBeFalsy();
+      const content = result.content as ContentBlock[];
+      expect(content).toHaveLength(1);
+      expect(content[0].type).toBe("text");
+      const parsed = JSON.parse(content[0].text);
+      const keys = Object.keys(parsed);
+      expect(keys).toEqual(["specialties"]);
+    });
+
+    it("26.9 database failure returns internal error", async () => {
+      const original = testDb;
+      testDb = new Database(":memory:");
+      testDb.close(); // closed DB will throw on any query
+
+      const result = await callSpecialtyList(client);
+      expect(result.isError).toBe(true);
+      const content = result.content as ContentBlock[];
+      expect(content).toHaveLength(1);
+      expect(content[0].type).toBe("text");
+      expect(content[0].text).toBe("Internal error: please try again later.");
+      expect(content[0].text).not.toMatch(/stack/i);
+      expect(content[0].text).not.toMatch(/\.ts/);
+
+      testDb = original;
     });
   });
 });

@@ -5,7 +5,7 @@
 ```json
 {
   "name": "doctor-search",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }
 ```
 
@@ -110,10 +110,55 @@ Validation errors are returned with `isError: true` and a text content block con
 
 Internal errors (e.g., database unavailable or query failure) are returned with `isError: true` and the message `"Internal error: please try again later."`.
 
+## Tool: `specialty-list`
+
+**Description** (returned in `tools/list` for LLM consumption):
+
+```
+List all available medical specialties in the doctor directory.
+Returns an alphabetically sorted list of distinct specialty names.
+Use this to discover valid specialty values before searching with doctor-search.
+```
+
+### Input Schema
+
+```json
+{
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
+```
+
+No parameters — the tool always returns the full list.
+
+### Output
+
+On success, the tool returns a text content block containing a JSON object:
+
+```json
+{
+  "specialties": [
+    "Allergy & Immunology",
+    "Anesthesiology",
+    "Cardiology",
+    "..."
+  ]
+}
+```
+
+| Field          | Type     | Description |
+|----------------|----------|-------------|
+| `specialties`  | string[] | Alphabetically sorted list of distinct specialty names (from the `classification` column) |
+
+### Errors
+
+This tool takes no input, so there are no validation errors. Internal errors (e.g., database unavailable or query failure) are returned with `isError: true` and the message `"Internal error: please try again later."`.
+
 ## MCP Protocol Details
 
 - **Transport:** stdio
 - **Capabilities:** tools only (no resources, no prompts)
-- **Tool listing:** Single tool `doctor-search` returned via `tools/list`
-- **Tool invocation:** Via `tools/call` with `name: "doctor-search"` and `arguments` matching the input schema above
-- **Response format:** `CallToolResult` with `content: [{ type: "text", text: "<JSON string>" }]` on success, or `content: [{ type: "text", text: "<error message>" }]` with `isError: true` on validation failure
+- **Tool listing:** Two tools (`doctor-search`, `specialty-list`) returned via `tools/list`
+- **Tool invocation:** Via `tools/call` with `name: "doctor-search"` or `name: "specialty-list"` and `arguments` matching the respective input schema above
+- **Response format:** `CallToolResult` with `content: [{ type: "text", text: "<JSON string>" }]` on success, or `content: [{ type: "text", text: "<error message>" }]` with `isError: true` on failure

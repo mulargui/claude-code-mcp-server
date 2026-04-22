@@ -4,7 +4,7 @@ An MCP server that lets LLMs search a directory of ~85,000 US doctors by last na
 
 ## What is this?
 
-This project exposes a single tool — `doctor-search` — via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Any MCP-compatible client (Claude Desktop, Claude Code, Cursor, etc.) can discover and invoke it to look up doctor profiles.
+This project exposes two tools — `doctor-search` and `specialty-list` — via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/). Any MCP-compatible client (Claude Desktop, Claude Code, Cursor, etc.) can discover and invoke them to look up doctor profiles or browse available specialties.
 
 The data comes from a MySQL dump of NPI (National Provider Identifier) records, imported into a SQLite database at build time. The server runs inside Docker and communicates over stdio.
 
@@ -35,7 +35,9 @@ Add this to your MCP client's configuration to connect:
 }
 ```
 
-## Tool: `doctor-search`
+## Tools
+
+### `doctor-search`
 
 Search for doctors matching the provided filters. At least one filter is required, and at least `lastname` or `specialty` must be included.
 
@@ -83,6 +85,16 @@ Multiple filters combine with AND logic. Results are capped at 50 records.
 ```
 
 `total_count` reflects the true number of matches, even when results are capped at 50.
+
+### `specialty-list`
+
+Returns all available medical specialties, sorted alphabetically. No parameters required. Use this to discover valid specialty values before searching with `doctor-search`.
+
+```json
+{
+  "specialties": ["Allergy & Immunology", "Anesthesiology", "Cardiology", "..."]
+}
+```
 
 ## Limitations
 
