@@ -9,13 +9,14 @@ Project skeleton and container infrastructure for a TypeScript MCP server (`doct
 - **Node 22** (`node:22-slim`), **npm**, **ES Modules**
 - **tsx** for scripts, **tsc** for compilation
 - **Multi-stage Docker build** — no host tooling required
+- **Dual transport:** stdio + Streamable HTTP (both always active)
 - SQL dump used only in build stage, discarded from final image
 - Final image: compiled JS + production node_modules + doctors.db only
 
 ## Files
 
 ### `package.json`
-- `"name": "doctor-search-mcp"`, `"version": "1.1.0"`, `"type": "module"`
+- `"name": "doctor-search-mcp"`, `"version": "1.2.0"`, `"type": "module"`
 - Scripts: `"build": "tsc"`, `"import-data": "tsx data/import-data.ts"`, `"start": "node dist/index.js"`
 - Dependencies: `@modelcontextprotocol/sdk`, `better-sqlite3`
 - Dev dependencies: `typescript`, `@types/better-sqlite3`, `@types/node`, `tsx`
@@ -41,6 +42,7 @@ Placeholder — creates an empty `doctors.db` with the correct schema so the bui
 
 **Stage 2 — runtime** (`node:22-slim`):
 - Copy from builder: `package.json`, `node_modules/` (reinstalled with `--omit=dev`), `dist/`, `data/doctors.db`
+- `EXPOSE $PORT` — exposes the HTTP transport port
 - `CMD ["node", "dist/index.js"]`
 
 SQL dump, TypeScript source, dev deps — all discarded. Final image is minimal.
@@ -48,21 +50,48 @@ SQL dump, TypeScript source, dev deps — all discarded. Final image is minimal.
 ### `.dockerignore`
 - `node_modules/`, `dist/`, `data/doctors.db`, `.git/`, `docs/`
 
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT`   | `3000`  | HTTP transport listen port |
+
 ## Build & Run
 
 ```bash
+# Build
 docker build -t doctor-search-mcp .
-docker run --rm doctor-search-mcp
+
+# Run — stdio only (HTTP server runs inside but port is not mapped)
+docker run -i --rm doctor-search-mcp
+
+# Run — HTTP
+docker run -p $PORT:$PORT --rm doctor-search-mcp
+
+# Run — both externally accessible
+docker run -i -p $PORT:$PORT --rm doctor-search-mcp
 ```
 
 ### MCP Client Configuration
 
+**Stdio (subprocess):**
 ```json
 {
   "mcpServers": {
     "doctor-search": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "doctor-search-mcp"]
+    }
+  }
+}
+```
+
+**HTTP (network):**
+```json
+{
+  "mcpServers": {
+    "doctor-search": {
+      "url": "http://localhost:${PORT}/mcp"
     }
   }
 }

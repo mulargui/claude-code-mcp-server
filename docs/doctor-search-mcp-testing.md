@@ -54,7 +54,31 @@ Test cases:
 
 Test file: `data/__tests__/import-integration.test.ts`
 
-## Step 5: Add test script and verify
+### Full-stack integration test
+
+Verifies the complete wiring from MCP client through server, validation, and search to SQLite. Uses an in-memory database with test data and real (unmocked) modules. Tests both transport paths:
+
+- **InMemoryTransport**: Client/Server round-trip covering tool listing, search results, validation errors, prefix matching, and AND logic
+- **HTTP transport cross-verification**: Starts a real HTTP server via `startHttpServer()`, exercises the same queries over HTTP, and asserts results are identical to InMemoryTransport. Also verifies multiple HTTP sessions share the same database.
+
+The database is set up once at module scope and shared across both `describe` blocks.
+
+Test file: `src/__tests__/integration.test.ts`
+
+## Step 5: HTTP transport tests
+
+Test file: `src/__tests__/http.test.ts`
+
+Tests exercise the Streamable HTTP transport via direct HTTP requests against a real HTTP server started on a random high port. Uses the same pattern as integration tests: mock `db.ts` with an in-memory SQLite database seeded with test data.
+
+Test categories:
+- **Routing**: 404 for unknown paths, 405 for unsupported methods
+- **Request validation**: 400 for invalid JSON, 400 for missing session
+- **Session lifecycle**: Initialize, tool calls, session termination
+- **Tool behavior over HTTP**: Same results as over stdio
+- **Error handling**: Invalid session IDs, JSON-RPC error responses
+
+## Step 6: Add test script and verify
 - Run `npx vitest run` to verify all tests pass
 - Ensure no changes to existing runtime behavior
 
@@ -65,11 +89,13 @@ Test file: `data/__tests__/import-integration.test.ts`
 - **Modified:** `data/import-data.ts` — thin wrapper calling importFromDump with real paths
 - **New:** `data/__tests__/parse-values.test.ts` — unit tests for parser
 - **New:** `src/__tests__/db.test.ts` — unit tests for db module
-- **New:** `data/__tests__/import-integration.test.ts` — integration test
+- **New:** `data/__tests__/import-integration.test.ts` — data import integration test
+- **New:** `src/__tests__/integration.test.ts` — full-stack integration test (stdio + HTTP cross-verification)
+- **New:** `src/__tests__/http.test.ts` — HTTP transport tests
 - **Modified:** `package.json` — add vitest dep and test script
 - **Modified:** `Dockerfile` — add `RUN npm test` **before** import-data
 
-## Step 6: Update Dockerfile
+## Step 7: Update Dockerfile
 Add `RUN npm test` in the builder stage **before** import-data, since all tests are self-contained:
 
 ```dockerfile

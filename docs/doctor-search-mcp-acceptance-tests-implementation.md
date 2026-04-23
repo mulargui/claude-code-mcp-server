@@ -1,16 +1,20 @@
-# Plan: Implement 132 Acceptance Tests
+# Plan: Implement 151 Acceptance Tests
 
 ## Context
 
-The Doctor Search MCP Server has its core modules implemented (`validate.ts`, `search.ts`, `server.ts`, `db.ts`, `index.ts`) and existing unit/integration tests. The acceptance test spec (`docs/doctor-search-mcp-acceptance-tests.md`) defines 132 tests across 25 categories that validate the server's behavior through the MCP protocol layer. This plan creates those acceptance tests.
+The Doctor Search MCP Server has its core modules implemented (`validate.ts`, `search.ts`, `server.ts`, `db.ts`, `index.ts`) and existing unit/integration tests. The acceptance test spec (`docs/doctor-search-mcp-acceptance-tests.md`) defines 151 tests across 27 categories that validate the server's behavior through the MCP protocol layer. This plan creates those acceptance tests.
 
 ## Approach
 
-**Single file**: `src/__tests__/acceptance.test.ts` (~2000 lines, 132 tests in 25 `describe` blocks)
+**Two files**:
+- `src/__tests__/acceptance.test.ts` (~2000 lines, 141 tests in 26 `describe` blocks) — tool behavior tests via InMemoryTransport
+- `src/__tests__/http.test.ts` — HTTP transport tests (10 tests) via direct HTTP requests
 
-All tests go through the MCP Client/Server round-trip via `InMemoryTransport` — the exact pattern already used in `integration.test.ts`. The only mock is `db.ts`, replaced with an in-memory SQLite database seeded with test data. This tests the full stack (server.ts -> validate.ts -> search.ts -> SQLite) as an MCP client would observe it.
+Tool behavior tests go through the MCP Client/Server round-trip via `InMemoryTransport` — the exact pattern already used in `integration.test.ts`. The only mock is `db.ts`, replaced with an in-memory SQLite database seeded with test data. This tests the full stack (server.ts -> validate.ts -> search.ts -> SQLite) as an MCP client would observe it.
 
-**Why one file**: The `vi.mock("../db.js")` call is module-scoped. Splitting across files that each need this mock causes module isolation headaches. `describe` blocks provide sufficient organization.
+HTTP transport tests start a real HTTP server on a random high port and use `fetch()` to exercise the Streamable HTTP transport endpoint at `/mcp`. These verify routing, session management, and that tool behavior is identical over HTTP.
+
+**Why split**: InMemoryTransport tests share a single `vi.mock("../db.js")` scope. HTTP tests use a separate mock scope and start an actual HTTP server, making them a natural separate file.
 
 ## Test Infrastructure
 
@@ -62,6 +66,8 @@ callToolError(args)   → error text string
 | 23. Repeated Calls | 1 | 3 identical calls → identical results |
 | 24. Empty Database | 1 | Swap testDb to empty DB, verify 0 results (not error) |
 | 25. Specialty Tiebreaker | 2 | Equal-length → classification wins; different-length → longer wins |
+| 26. Specialty List | 9 | No-arg success, output format, sorting, dedup, known values, nulls, bad args, content block, DB failure |
+| 27. HTTP Transport | 10 | Routing (404, 405), request validation (400), session lifecycle, tool calls, multi-session |
 
 ## Extra Test Data (beyond 7 core + 55 Test doctors)
 
@@ -82,14 +88,16 @@ callToolError(args)   → error text string
 4. **Sections 10-14**: Output format + edge cases (26 tests)
 5. **Sections 15-18**: Error handling + validation priority (9 tests)
 6. **Sections 19-25**: Ordering, defaults, boundaries, tiebreaker (14 tests)
-7. **Run full suite via Docker**: `docker build -t doctor-search-mcp .` to confirm all 132 + existing tests pass
+7. **Section 27**: HTTP transport tests in `src/__tests__/http.test.ts` (10 tests)
+8. **Run full suite via Docker**: `docker build -t doctor-search-mcp .` to confirm all tests pass
 
 ## Key Files
 
-- **Create**: `src/__tests__/acceptance.test.ts`
+- **Create**: `src/__tests__/acceptance.test.ts` (sections 1-26)
+- **Create**: `src/__tests__/http.test.ts` (section 27)
 - **Reference**: `src/__tests__/integration.test.ts` (MCP client/server pattern)
 - **Reference**: `src/__tests__/search.test.ts` (DB seeding pattern)
-- **Spec**: `docs/doctor-search-mcp-acceptance-tests.md` (132 test definitions)
+- **Spec**: `docs/doctor-search-mcp-acceptance-tests.md` (151 test definitions)
 
 ## Verification
 

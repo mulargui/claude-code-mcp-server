@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Doctor Search MCP Server — a TypeScript MCP server that exposes two tools: `doctor-search` for searching US doctors by last name, specialty, gender, and/or zip code, and `specialty-list` for retrieving the list of available medical specialties. Uses SQLite as its datastore and communicates over stdio transport. Runs inside Docker.
+Doctor Search MCP Server — a TypeScript MCP server that exposes two tools: `doctor-search` for searching US doctors by last name, specialty, gender, and/or zip code, and `specialty-list` for retrieving the list of available medical specialties. Uses SQLite as its datastore and supports dual transport (stdio + Streamable HTTP), both always active. Runs inside Docker.
 
 **Stack:** TypeScript, `@modelcontextprotocol/sdk`, `better-sqlite3`, Vitest, Docker (Node 22-slim)
 
@@ -16,8 +16,9 @@ Doctor Search MCP Server — a TypeScript MCP server that exposes two tools: `do
 ├── CLAUDE.md               # Claude Code instructions
 ├── AGENTS.md               # This file
 ├── src/
-│   ├── index.ts            # Entry point: open DB, start server, stdio transport
-│   ├── server.ts           # MCP server setup, tool registration, call handler
+│   ├── index.ts            # Entry point: open DB, start stdio + HTTP transports
+│   ├── server.ts           # MCP server factory, tool registration, call handler
+│   ├── http.ts             # HTTP server, StreamableHTTP transport, session management
 │   ├── db.ts               # SQLite connection manager (read-only singleton)
 │   ├── search.ts           # Query builder & executor
 │   ├── validate.ts         # Input validation
@@ -27,8 +28,9 @@ Doctor Search MCP Server — a TypeScript MCP server that exposes two tools: `do
 │       ├── validate.test.ts        # Input validation unit tests
 │       ├── search.test.ts          # Search query builder unit tests
 │       ├── server.test.ts          # MCP server integration tests
-│       ├── integration.test.ts     # Full-stack integration tests
-│       └── acceptance.test.ts      # Comprehensive acceptance tests (141 tests)
+│       ├── integration.test.ts     # Full-stack integration tests (stdio + HTTP cross-verification)
+│       ├── acceptance.test.ts      # Comprehensive acceptance tests (141 tests)
+│       └── http.test.ts           # HTTP transport tests (10 tests)
 ├── data/
 │   ├── healthylinkxdump.sql  # Source MySQL dump (~85k records)
 │   ├── doctors.db            # Generated SQLite DB (gitignored)
@@ -50,8 +52,14 @@ All build and run commands execute inside Docker. There are no local build prere
 # Build image (compiles TS, runs tests, imports data, verifies DB)
 docker build -t doctor-search-mcp .
 
-# Run the MCP server
+# Run — stdio only (HTTP server runs inside but port is not mapped)
 docker run -i --rm doctor-search-mcp
+
+# Run — HTTP (PORT defaults to 3000)
+docker run -p $PORT:$PORT --rm doctor-search-mcp
+
+# Run — both externally accessible
+docker run -i -p $PORT:$PORT --rm doctor-search-mcp
 ```
 
 The Dockerfile multi-stage build handles everything: `npm install`, `tsc`, `vitest run`, data import, and verification. The runtime image contains only compiled JS, production `node_modules`, and the SQLite database.
@@ -59,15 +67,17 @@ The Dockerfile multi-stage build handles everything: `npm install`, `tsc`, `vite
 ## Architecture
 
 ```
-MCP Client → stdio → index.ts → server.ts → validate.ts → search.ts → db.ts → SQLite
+MCP Client → stdio  → index.ts → server.ts → validate.ts → search.ts → db.ts → SQLite
+MCP Client → HTTP   → http.ts  → server.ts → validate.ts → search.ts → db.ts → SQLite
 ```
 
 ### Module Responsibilities
 
 | Module         | Role |
 |----------------|------|
-| `index.ts`     | Opens DB, creates MCP server, connects stdio transport, handles shutdown |
-| `server.ts`    | Instantiates MCP `Server`, registers `doctor-search` and `specialty-list` tools, routes tool calls |
+| `index.ts`     | Opens DB, starts stdio + HTTP transports, handles shutdown |
+| `server.ts`    | Factory (`createServer()`) that returns a configured MCP `Server` instance with tool registration |
+| `http.ts`      | HTTP server using `node:http`, `StreamableHTTPServerTransport` session management, `/mcp` endpoint |
 | `validate.ts`  | Validates filter combination rules and individual field constraints |
 | `search.ts`    | Builds parameterized SQL queries, executes against SQLite, maps results; lists distinct specialties |
 | `db.ts`        | Opens/closes SQLite in read-only mode as a singleton |
@@ -91,9 +101,10 @@ All modules are fully implemented and tested.
 - Type definitions (`src/types.ts`): all interfaces
 - Validation (`src/validate.ts`): combination rules and individual field constraints
 - Search (`src/search.ts`): dynamic WHERE clause builder, parameterized queries, specialty resolution, specialty listing
-- Server (`src/server.ts`): MCP server with tool registration and call handler
-- Entry point (`src/index.ts`): DB init, server creation, stdio transport, graceful shutdown
-- Test suite: unit tests (validate, search, db, parser), integration tests (server, import pipeline), acceptance tests (141 tests across 26 categories)
+- Server (`src/server.ts`): MCP server factory with tool registration and call handler
+- HTTP transport (`src/http.ts`): HTTP server, StreamableHTTP transport, session management
+- Entry point (`src/index.ts`): DB init, dual transport startup (stdio + HTTP on `PORT`), graceful shutdown
+- Test suite: unit tests (validate, search, db, parser), integration tests (server, import pipeline, HTTP cross-verification), acceptance tests (141 tests across 26 categories), HTTP transport tests (10 tests)
 - Infrastructure: Dockerfile, package.json, tsconfig.json, vitest config
 - Documentation: full spec, architecture, interface, testing, and acceptance test docs in `docs/`
 

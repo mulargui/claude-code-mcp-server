@@ -2,7 +2,7 @@
 
 ## Context
 
-We're building a local MCP server (stdio transport) in TypeScript that exposes two tools: `doctor-search` and `specialty-list`. The data comes from a MySQL dump (`data/healthylinkxdump.sql`) containing ~21MB of NPI provider data. The server is read-only and local-only.
+We're building an MCP server (dual transport: stdio + Streamable HTTP) in TypeScript that exposes two tools: `doctor-search` and `specialty-list`. The data comes from a MySQL dump (`data/healthylinkxdump.sql`) containing ~21MB of NPI provider data. The server is read-only. Both transports are always active — stdio for subprocess-based MCP clients, HTTP for network-accessible deployments.
 
 ## Datastore
 
@@ -69,8 +69,9 @@ The `taxonomy` and `specializations` tables are **not needed** — specialty val
 │   ├── doctors.db             # generated SQLite DB (gitignored)
 │   └── import-data.ts         # MySQL dump → SQLite import script
 ├── src/
-│   ├── index.ts               # entry point: creates & starts the MCP server
-│   ├── server.ts              # MCP server setup, tool registration
+│   ├── index.ts               # entry point: starts stdio + HTTP transports
+│   ├── server.ts              # MCP server factory, tool registration
+│   ├── http.ts                # HTTP server, StreamableHTTP transport, session management
 │   ├── db.ts                  # SQLite connection (read-only singleton)
 │   ├── search.ts              # query builder & executor for doctor-search
 │   ├── validate.ts            # input validation logic
@@ -85,17 +86,25 @@ The `taxonomy` and `specializations` tables are **not needed** — specialty val
 
 ### `src/index.ts` — Entry Point
 - Opens the SQLite DB via `db.ts`
-- Creates the MCP server via `server.ts`
-- Connects stdio transport
-- Handles graceful shutdown (close DB)
+- Creates an MCP server instance via `createServer()` and connects `StdioServerTransport`
+- Starts the HTTP server via `http.ts` (listens on `PORT`, default `3000`)
+- Handles graceful shutdown: closes HTTP server, stdio transport, and DB
 
-### `src/server.ts` — MCP Server Setup
-- Uses `@modelcontextprotocol/sdk` to create a `Server`
+### `src/server.ts` — MCP Server Factory
+- Exports `createServer()` — returns a new `Server` instance each time, so stdio and each HTTP session get independent instances sharing the same tool registration logic
 - Registers two tools: `doctor-search` (with its JSON Schema input definition) and `specialty-list` (no parameters)
 - On `doctor-search` call: validates input via `validate.ts`, then queries via `search.ts`
 - On `specialty-list` call: queries via `search.ts` to retrieve distinct specialties
 - Returns results as structured content, or error messages for invalid input
 - Returns `"Internal error: please try again later."` for unknown tool names or unexpected failures
+
+### `src/http.ts` — HTTP Transport
+- Creates a Node.js HTTP server using `node:http` (no Express dependency)
+- Handles `POST /mcp` — creates a `StreamableHTTPServerTransport` from `@modelcontextprotocol/sdk`, connects a new `Server` instance via `createServer()`, delegates the request
+- Handles `GET /mcp` — SSE stream for server-initiated messages (uses existing session's transport)
+- Handles `DELETE /mcp` — session termination and cleanup
+- Session management: each HTTP client gets an isolated server+transport pair, all sharing the same read-only DB
+- Sessions are identified by the `Mcp-Session-Id` header (managed by the SDK)
 
 ### `src/db.ts` — Database Access
 - Exports a function to open the SQLite DB in read-only mode using `better-sqlite3`
@@ -142,10 +151,11 @@ The `taxonomy` and `specializations` tables are **not needed** — specialty val
 
 ## Dependencies
 
-- `@modelcontextprotocol/sdk` — MCP server SDK
-- `better-sqlite3` — SQLite driver (synchronous API, ideal for MCP stdio)
+- `@modelcontextprotocol/sdk` — MCP server SDK (provides both `StdioServerTransport` and `StreamableHTTPServerTransport`)
+- `better-sqlite3` — SQLite driver (synchronous API)
 - `typescript`, `@types/better-sqlite3` — dev dependencies
 - `tsx` — for running TypeScript scripts directly
+- `node:http` — built-in Node.js module for the HTTP server (no additional dependency)
 
 ## Data Flow
 
@@ -175,20 +185,40 @@ specialty-list call → server.ts
 
 The server runs inside a Docker container with all dependencies and data baked in.
 
-- **Multi-stage Dockerfile** based on `node:20-slim` — build stage compiles TypeScript and runs the data import; runtime stage copies only the compiled JS, `node_modules`, and `data/doctors.db`
+- **Multi-stage Dockerfile** based on `node:22-slim` — build stage compiles TypeScript and runs the data import; runtime stage copies only the compiled JS, `node_modules`, and `data/doctors.db`
 - Data import happens at **build time**, so the SQLite DB is baked into the image
-- No `EXPOSE` needed — the server uses stdio transport
+- `EXPOSE $PORT` — exposes the HTTP transport port
 - Build: `docker build -t doctor-search-mcp .`
-- Run: `docker run -i --rm doctor-search-mcp` (`-i` keeps stdin open for stdio)
+- Run (stdio only): `docker run -i --rm doctor-search-mcp` (`-i` keeps stdin open; HTTP server runs inside but port is not mapped)
+- Run (HTTP): `docker run -p $PORT:$PORT --rm doctor-search-mcp`
+- Run (both externally accessible): `docker run -i -p $PORT:$PORT --rm doctor-search-mcp`
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT`   | `3000`  | HTTP transport listen port |
 
 ### MCP Client Configuration
 
+**Stdio (subprocess):**
 ```json
 {
   "mcpServers": {
     "doctor-search": {
       "command": "docker",
       "args": ["run", "-i", "--rm", "doctor-search-mcp"]
+    }
+  }
+}
+```
+
+**HTTP (network):**
+```json
+{
+  "mcpServers": {
+    "doctor-search": {
+      "url": "http://localhost:${PORT}/mcp"
     }
   }
 }

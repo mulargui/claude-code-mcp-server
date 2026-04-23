@@ -31,7 +31,7 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 
 **Given** the MCP server is started via stdio transport
 **When** the client sends an `initialize` request
-**Then** the server responds with `name: "doctor-search"` and `version: "1.1.0"`
+**Then** the server responds with `name: "doctor-search"` and `version: "1.2.0"`
 **And** the capabilities include `tools` but not `resources` or `prompts`
 
 ### 1.2 Tool listing
@@ -1059,6 +1059,78 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 
 ---
 
+## 27. HTTP Transport
+
+### 27.1 Non-MCP path returns 404
+
+**Given** the HTTP server is running
+**When** a request is sent to a path other than `/mcp`
+**Then** the response status is `404`
+
+### 27.2 Unsupported HTTP method returns 405
+
+**Given** the HTTP server is running
+**When** a `PUT` request is sent to `/mcp`
+**Then** the response status is `405`
+**And** the body is a JSON-RPC error with message `"Method not allowed."`
+
+### 27.3 Invalid JSON body returns 400
+
+**Given** the HTTP server is running
+**When** a `POST` request is sent to `/mcp` with a non-JSON body
+**Then** the response status is `400`
+**And** the body is a JSON-RPC error with message containing `"Parse error"`
+
+### 27.4 Non-initialize POST without session returns 400
+
+**Given** the HTTP server is running
+**When** a `POST` request is sent to `/mcp` without `mcp-session-id` header and with a non-initialize JSON-RPC method
+**Then** the response status is `400`
+**And** the body is a JSON-RPC error with message `"Bad Request: No valid session ID provided."`
+
+### 27.5 Initialize request creates session
+
+**Given** the HTTP server is running
+**When** a `POST` request is sent to `/mcp` with a valid MCP `initialize` JSON-RPC body and `Accept: application/json, text/event-stream`
+**Then** the response status is `200`
+**And** the response includes an `mcp-session-id` header with a non-empty value
+
+### 27.6 Tool call within session returns results
+
+**Given** a session has been established via initialize
+**When** the client sends a `tools/call` request for `doctor-search` with `{ "lastname": "Smith" }` using the session's `mcp-session-id` header
+**Then** the response status is `200`
+**And** the response body contains a JSON-RPC result with matching doctor records
+
+### 27.7 Specialty-list tool works over HTTP
+
+**Given** a session has been established via initialize
+**When** the client sends a `tools/call` request for `specialty-list` with `{}` using the session's `mcp-session-id` header
+**Then** the response status is `200`
+**And** the response body contains a JSON-RPC result with `specialties` as a sorted string array
+
+### 27.8 Validation errors returned over HTTP
+
+**Given** a session has been established via initialize
+**When** the client sends a `tools/call` request for `doctor-search` with `{}` (no filters) using the session's `mcp-session-id` header
+**Then** the response status is `200`
+**And** the JSON-RPC result has `isError: true` with message `"At least one filter is required."`
+
+### 27.9 DELETE terminates session
+
+**Given** a session has been established via initialize
+**When** the client sends a `DELETE` request to `/mcp` with the session's `mcp-session-id` header
+**Then** the response status is `200`
+
+### 27.10 Multiple independent sessions
+
+**Given** the HTTP server is running
+**When** two separate initialize requests are sent
+**Then** each response includes a different `mcp-session-id` value
+**And** tool calls on each session operate independently
+
+---
+
 ## Test Summary
 
 | Category | Test Count | Coverage |
@@ -1089,4 +1161,5 @@ Tests reference a controlled dataset seeded into the SQLite database before the 
 | Empty Database | 1 | Valid query against zero rows |
 | Specialty Tiebreaker | 2 | Equal-length and different-length tiebreaker |
 | Specialty List Tool | 9 | No-arg success, output format, sorting, dedup, known values, nulls excluded, bad args, content block, DB failure |
-| **Total** | **141** | |
+| HTTP Transport | 10 | Routing, request validation, session lifecycle, tool calls over HTTP, multi-session |
+| **Total** | **151** | |

@@ -5,7 +5,7 @@
 ```json
 {
   "name": "doctor-search",
-  "version": "1.1.0"
+  "version": "1.2.0"
 }
 ```
 
@@ -157,8 +157,25 @@ This tool takes no input, so there are no validation errors. Internal errors (e.
 
 ## MCP Protocol Details
 
-- **Transport:** stdio
 - **Capabilities:** tools only (no resources, no prompts)
 - **Tool listing:** Two tools (`doctor-search`, `specialty-list`) returned via `tools/list`
 - **Tool invocation:** Via `tools/call` with `name: "doctor-search"` or `name: "specialty-list"` and `arguments` matching the respective input schema above
 - **Response format:** `CallToolResult` with `content: [{ type: "text", text: "<JSON string>" }]` on success, or `content: [{ type: "text", text: "<error message>" }]` with `isError: true` on failure
+
+### Transports
+
+Both transports are always active simultaneously. Tool behavior, schemas, and responses are identical regardless of transport.
+
+**Stdio:**
+- JSON-RPC messages over stdin/stdout
+- One client connection per process
+- Used when the MCP client launches the server as a subprocess
+
+**Streamable HTTP:**
+- Endpoint: `http://<host>:<PORT>/mcp` (where `PORT` defaults to `3000`)
+- `POST /mcp` — send JSON-RPC requests; responses may be returned as SSE streams or direct JSON
+- `GET /mcp` — open an SSE stream for server-initiated messages (requires `Mcp-Session-Id` header)
+- `DELETE /mcp` — terminate a session (requires `Mcp-Session-Id` header)
+- Sessions are identified by the `Mcp-Session-Id` response header, managed by the SDK
+- Each session gets an independent server instance
+- Supports multiple concurrent clients

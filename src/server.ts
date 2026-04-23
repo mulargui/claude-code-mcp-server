@@ -16,7 +16,7 @@ import type { DoctorSearchInput } from "./types.js";
 
 export function createServer(): Server {
   const server = new Server(
-    { name: "doctor-search", version: "1.1.0" },
+    { name: "doctor-search", version: "1.2.0" },
     { capabilities: { tools: {} } },
   );
 

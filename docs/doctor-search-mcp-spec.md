@@ -2,7 +2,7 @@
 
 ## Overview
 
-An MCP server that exposes two tools: `doctor-search` for searching doctors by last name, specialty, gender, and/or zip code, and `specialty-list` for retrieving the list of available medical specialties.
+An MCP server that exposes two tools: `doctor-search` for searching doctors by last name, specialty, gender, and/or zip code, and `specialty-list` for retrieving the list of available medical specialties. The server supports dual transport — stdio for subprocess-based integrations and Streamable HTTP for network-accessible deployments — both active simultaneously.
 
 ### Why?
 
