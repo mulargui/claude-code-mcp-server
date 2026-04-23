@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://api.github.com/repos/modelcontextprotocol/typescript-sdk/branches)",
+      "Bash(curl -s https://api.github.com/repos/modelcontextprotocol/typescript-sdk/tags)",
+      "Bash(curl -s https://raw.githubusercontent.com/modelcontextprotocol/typescript-sdk/main/docs/server.md)",
+      "Bash(curl:*)",
+      "Bash(docker run:*)",
+      "Bash(docker --version)"
+    ]
+  }
+}
